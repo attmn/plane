@@ -7,6 +7,7 @@
 import { getAttributes } from "@tiptap/core";
 import type { MarkType } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { normalizePlaneLinkHref } from "./normalize-plane-link";
 
 type ClickHandlerOptions = {
   type: MarkType;
@@ -24,7 +25,7 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
         const link = (event.target as Element).closest("a[href]") as HTMLAnchorElement | null;
         if (!link || !view.dom.contains(link)) return false;
         const attrs = getAttributes(view.state, options.type.name);
-        const href = link.href || attrs.href;
+        const href = normalizePlaneLinkHref(link.href || attrs.href);
         const target = link.target || attrs.target;
 
         if (link && href) {

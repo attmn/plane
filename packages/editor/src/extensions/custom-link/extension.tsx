@@ -15,6 +15,7 @@ import { isValidHttpUrl } from "@/helpers/common";
 // local imports
 import { autolink } from "./helpers/autolink";
 import { clickHandler } from "./helpers/clickHandler";
+import { normalizePlaneLinkHref } from "./helpers/normalize-plane-link";
 import { pasteHandler } from "./helpers/pasteHandler";
 
 type LinkProtocolOptions = {
@@ -197,7 +198,7 @@ export const CustomLinkExtension = Mark.create<LinkOptions, CustomLinkStorage>({
     if (isDangerousHref(href)) {
       return ["a", mergeAttributes(this.options.HTMLAttributes, { ...HTMLAttributes, href: "" }), 0];
     }
-    return ["a", mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
+    return ["a", mergeAttributes(this.options.HTMLAttributes, { ...HTMLAttributes, href: normalizePlaneLinkHref(href) }), 0];
   },
 
   addCommands() {

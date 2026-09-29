@@ -9,6 +9,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 // components
 import { LinkEditView, LinkPreview } from "@/components/links";
+import { normalizePlaneLinkHref } from "@/extensions/custom-link/helpers/normalize-plane-link";
 
 export type LinkViews = "LinkPreview" | "LinkEditView";
 
@@ -23,6 +24,7 @@ export type LinkViewProps = {
 };
 
 export function LinkView(props: LinkViewProps & { style: CSSProperties }) {
+  const viewProps = { ...props, url: normalizePlaneLinkHref(props.url) };
   const [currentView, setCurrentView] = useState<LinkViews>(props.view ?? "LinkPreview");
   const [prevFrom, setPrevFrom] = useState(props.from);
 
@@ -39,8 +41,8 @@ export function LinkView(props: LinkViewProps & { style: CSSProperties }) {
 
   return (
     <>
-      {currentView === "LinkPreview" && <LinkPreview viewProps={props} switchView={switchView} />}
-      {currentView === "LinkEditView" && <LinkEditView viewProps={props} switchView={switchView} />}
+      {currentView === "LinkPreview" && <LinkPreview viewProps={viewProps} switchView={switchView} />}
+      {currentView === "LinkEditView" && <LinkEditView viewProps={viewProps} switchView={switchView} />}
     </>
   );
 }
