@@ -39,11 +39,25 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
             return false;
           }
 
+          const destination = new URL(href, window.location.href);
+          const isInternal = destination.origin === window.location.origin;
+          if (isInternal && (event.metaKey || event.ctrlKey || event.shiftKey)) {
+            return false;
+          }
+
           event.preventDefault();
-          if (target === "_self" || new URL(href, window.location.href).origin === window.location.origin) {
-            window.location.assign(href);
+          if (isInternal) {
+            const navigationEvent = new CustomEvent("plane:internal-link-navigation", {
+              detail: { href: destination.pathname + destination.search + destination.hash },
+              cancelable: true,
+            });
+            if (window.dispatchEvent(navigationEvent)) {
+              window.location.assign(destination.href);
+            }
+          } else if (target === "_self") {
+            window.location.assign(destination.href);
           } else {
-            window.open(href, target);
+            window.open(destination.href, target);
           }
 
           return true;
