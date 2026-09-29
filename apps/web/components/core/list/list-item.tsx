@@ -19,6 +19,7 @@ interface IListItemProps {
   itemLink: string;
   onItemClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
   prependTitleElement?: React.ReactNode;
+  leadingActionElement?: React.ReactNode;
   appendTitleElement?: React.ReactNode;
   actionableItems?: React.ReactNode;
   isMobile?: boolean;
@@ -39,6 +40,7 @@ export function ListItem(props: IListItemProps) {
     id,
     title,
     prependTitleElement,
+    leadingActionElement,
     appendTitleElement,
     actionableItems,
     itemLink,
@@ -75,6 +77,7 @@ export function ListItem(props: IListItemProps) {
         )}
       >
         <div className={cn("relative flex w-full items-center justify-between gap-3 truncate", itemClassName)}>
+          {leadingActionElement}
           <ControlLink
             id={id}
             className="relative flex w-full items-center gap-3 overflow-hidden"

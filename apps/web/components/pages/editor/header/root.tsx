@@ -7,9 +7,12 @@
 import { useState } from "react";
 import { observer } from "mobx-react";
 import { ReactionOutline } from "@makeplane/propel/icons";
+import { Button } from "@makeplane/propel/components/button";
 // plane imports
 import { EmojiPicker } from "@plane/blocks/emoji-icon-picker";
 import { cn } from "@plane/utils";
+import { EPageStoreType, usePageStore } from "@/hooks/store";
+import { useAppRouter } from "@/hooks/use-app-router";
 // store
 import type { TPageInstance } from "@/store/pages/base-page";
 // local imports
@@ -21,16 +24,55 @@ type Props = {
 };
 
 export const PageEditorHeaderRoot = observer(function PageEditorHeaderRoot(props: Props) {
-  const { page } = props;
+  const { page, projectId } = props;
   // states
   const [isLogoPickerOpen, setIsLogoPickerOpen] = useState(false);
+  const [isCreatingChild, setIsCreatingChild] = useState(false);
+  const { createPage, getPageById } = usePageStore(EPageStoreType.PROJECT);
+  const router = useAppRouter();
   // derived values
-  const { isContentEditable, logo_props, name, updatePageLogo } = page;
+  const { id, isContentEditable, logo_props, name, parent, updatePageLogo } = page;
+  const parentPage = parent ? getPageById(parent) : undefined;
   const isLogoSelected = !!logo_props?.in_use;
   const isTitleEmpty = !name || name.trim() === "";
 
   return (
     <>
+      {projectId && (parent || isContentEditable) && (
+        <div className="flex items-center justify-between gap-3 text-13">
+          {parent ? (
+            <button
+              type="button"
+              className="truncate text-secondary hover:text-primary"
+              onClick={() =>
+                router.push(parentPage?.getRedirectionLink() || page.getRedirectionLink().replace(/\/[^/]+$/, `/${parent}`))
+              }
+            >
+              {parentPage?.name || "Parent page"} / {name || "Untitled"}
+            </button>
+          ) : (
+            <span />
+          )}
+          {isContentEditable && id && (
+            <Button
+              variant="secondary"
+              size="sm"
+              stretch="auto"
+              label="New subpage"
+              loading={isCreatingChild}
+              onClick={async () => {
+                setIsCreatingChild(true);
+                try {
+                  const child = await createPage({ name: "Untitled", parent: id, access: page.access });
+                  if (child?.id) router.push(`${page.getRedirectionLink().replace(/\/[^/]+$/, "")}/${child.id}`);
+                } finally {
+                  setIsCreatingChild(false);
+                }
+              }}
+            />
+          )}
+        </div>
+      )}
       <div className="flex h-[48px] items-end text-left">
         {!isLogoSelected && (
           <div

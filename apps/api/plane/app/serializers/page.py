@@ -58,6 +58,33 @@ class PageSerializer(BaseSerializer):
         ]
         read_only_fields = ["workspace", "owned_by"]
 
+    def validate_parent(self, parent):
+        if parent is None:
+            return None
+
+        project_id = self.context.get("project_id")
+        if not project_id or not ProjectPage.objects.filter(
+            project_id=project_id, page_id=parent.id, deleted_at__isnull=True
+        ).exists():
+            raise serializers.ValidationError("Parent page must belong to this project.")
+
+        if parent.archived_at:
+            raise serializers.ValidationError("An archived page cannot be a parent.")
+
+        request = self.context.get("request")
+        if parent.access == Page.PRIVATE_ACCESS and (request is None or parent.owned_by_id != request.user.id):
+            raise serializers.ValidationError("You cannot add a page under someone else's private page.")
+
+        current = parent
+        visited = set()
+        while current is not None:
+            if current.id in visited or (self.instance and current.id == self.instance.id):
+                raise serializers.ValidationError("A page cannot be its own ancestor.")
+            visited.add(current.id)
+            current = current.parent
+
+        return parent
+
     def create(self, validated_data):
         labels = validated_data.pop("labels", None)
         project_id = self.context["project_id"]

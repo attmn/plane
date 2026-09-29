@@ -7,7 +7,7 @@
 import { useRef } from "react";
 import { observer } from "mobx-react";
 import { Logo } from "@plane/blocks/emoji-icon-picker";
-import { PagesOutline } from "@makeplane/propel/icons";
+import { ChevronDownOutline, ChevronRightOutline, PagesOutline } from "@makeplane/propel/icons";
 // plane imports
 import { getPageName } from "@plane/utils";
 // components
@@ -22,10 +22,14 @@ import { usePage } from "@/hooks/store";
 type TPageListBlock = {
   pageId: string;
   storeType: EPageStoreType;
+  depth?: number;
+  hasChildren?: boolean;
+  isExpanded?: boolean;
+  onToggle?: () => void;
 };
 
 export const PageListBlock = observer(function PageListBlock(props: TPageListBlock) {
-  const { pageId, storeType } = props;
+  const { pageId, storeType, depth = 0, hasChildren = false, isExpanded = false, onToggle } = props;
   // refs
   const parentRef = useRef(null);
   // hooks
@@ -40,21 +44,38 @@ export const PageListBlock = observer(function PageListBlock(props: TPageListBlo
   const { name, logo_props, getRedirectionLink } = page;
 
   return (
-    <ListItem
-      prependTitleElement={
-        <>
-          {logo_props?.in_use ? (
-            <Logo logo={logo_props} size={16} type="lucide" />
+    <div style={{ paddingLeft: `${depth * 16}px` }}>
+      <ListItem
+        leadingActionElement={
+          hasChildren ? (
+            <button
+              type="button"
+              className="grid size-5 flex-shrink-0 place-items-center rounded-sm text-tertiary hover:bg-layer-1"
+              aria-label={`${isExpanded ? "Collapse" : "Expand"} ${getPageName(name)}`}
+              aria-expanded={isExpanded}
+              onClick={onToggle}
+            >
+              {isExpanded ? <ChevronDownOutline className="size-4" /> : <ChevronRightOutline className="size-4" />}
+            </button>
           ) : (
-            <PagesOutline className="h-4 w-4 text-tertiary" />
-          )}
-        </>
-      }
-      title={getPageName(name)}
-      itemLink={getRedirectionLink()}
-      actionableItems={<BlockItemAction page={page} parentRef={parentRef} storeType={storeType} />}
-      isMobile={isMobile}
-      parentRef={parentRef}
-    />
+            <span className="size-5 flex-shrink-0" aria-hidden="true" />
+          )
+        }
+        prependTitleElement={
+          <>
+            {logo_props?.in_use ? (
+              <Logo logo={logo_props} size={16} type="lucide" />
+            ) : (
+              <PagesOutline className="h-4 w-4 text-tertiary" />
+            )}
+          </>
+        }
+        title={getPageName(name)}
+        itemLink={getRedirectionLink()}
+        actionableItems={<BlockItemAction page={page} parentRef={parentRef} storeType={storeType} />}
+        isMobile={isMobile}
+        parentRef={parentRef}
+      />
+    </div>
   );
 });
