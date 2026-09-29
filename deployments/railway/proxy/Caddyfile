@@ -1,0 +1,36 @@
+:8080 {
+    request_body {
+        max_size 10MB
+    }
+
+    redir /spaces /spaces/ permanent
+    redir /god-mode /god-mode/ permanent
+
+    handle /spaces/* {
+        reverse_proxy plane-space.railway.internal:3000
+    }
+    handle /god-mode/* {
+        reverse_proxy plane-admin.railway.internal:3000
+    }
+    handle /live/* {
+        reverse_proxy plane-live.railway.internal:3000
+    }
+    handle /api/* {
+        reverse_proxy plane-api.railway.internal:8000
+    }
+    handle /auth/* {
+        reverse_proxy plane-api.railway.internal:8000
+    }
+    handle /static/* {
+        reverse_proxy plane-api.railway.internal:8000
+    }
+    handle /uploads/* {
+        reverse_proxy plane-minio.railway.internal:9000
+    }
+    handle /uploads {
+        reverse_proxy plane-minio.railway.internal:9000
+    }
+    handle {
+        reverse_proxy plane-web.railway.internal:3000
+    }
+}
