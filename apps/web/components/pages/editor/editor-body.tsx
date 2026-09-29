@@ -43,6 +43,7 @@ import type { TPageInstance } from "@/store/pages/base-page";
 // local imports
 import { PageContentLoader } from "../loaders/page-content-loader";
 import { PageEditorHeaderRoot } from "./header";
+import { PageEditorSubpages } from "./subpages";
 import { PageContentBrowser } from "./summary";
 import { EditorAIMenu } from "./ai/menu";
 
@@ -274,6 +275,7 @@ export const PageEditorBody = observer(function PageEditorBody(props: Props) {
               <PageEditorHeaderRoot page={page} projectId={projectId} />
             </div>
           </div>
+          {projectId && <PageEditorSubpages pageId={pageId} projectId={projectId} className={blockWidthClassName} />}
           <CollaborativeDocumentEditorWithRef
             editable={isContentEditable}
             id={pageId}
