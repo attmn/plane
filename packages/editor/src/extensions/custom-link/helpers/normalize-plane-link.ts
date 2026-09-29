@@ -6,11 +6,11 @@
 const LEGACY_PLANE_HOST = "plane-proxy-production-6342.up.railway.app";
 
 /** Keep links created before the custom domain on the domain currently serving Plane. */
-export const normalizePlaneLinkHref = (href: string): string => {
+export const normalizePlaneLinkHref = (href: string, currentOrigin = ""): string => {
   try {
     const url = new URL(href);
     if (url.hostname === LEGACY_PLANE_HOST && (url.protocol === "http:" || url.protocol === "https:")) {
-      return `${url.pathname}${url.search}${url.hash}`;
+      return `${currentOrigin}${url.pathname}${url.search}${url.hash}`;
     }
   } catch {
     // Relative links already resolve against the current Plane domain.

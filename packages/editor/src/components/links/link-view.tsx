@@ -24,7 +24,10 @@ export type LinkViewProps = {
 };
 
 export function LinkView(props: LinkViewProps & { style: CSSProperties }) {
-  const viewProps = { ...props, url: normalizePlaneLinkHref(props.url) };
+  const viewProps = {
+    ...props,
+    url: normalizePlaneLinkHref(props.url, typeof window === "undefined" ? "" : window.location.origin),
+  };
   const [currentView, setCurrentView] = useState<LinkViews>(props.view ?? "LinkPreview");
   const [prevFrom, setPrevFrom] = useState(props.from);
 
