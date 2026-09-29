@@ -28,49 +28,33 @@ export const PageEditorHeaderRoot = observer(function PageEditorHeaderRoot(props
   // states
   const [isLogoPickerOpen, setIsLogoPickerOpen] = useState(false);
   const [isCreatingChild, setIsCreatingChild] = useState(false);
-  const { createPage, getPageById } = usePageStore(EPageStoreType.PROJECT);
+  const { createPage } = usePageStore(EPageStoreType.PROJECT);
   const router = useAppRouter();
   // derived values
-  const { id, isContentEditable, logo_props, name, parent, updatePageLogo } = page;
-  const parentPage = parent ? getPageById(parent) : undefined;
+  const { id, isContentEditable, logo_props, name, updatePageLogo } = page;
   const isLogoSelected = !!logo_props?.in_use;
   const isTitleEmpty = !name || name.trim() === "";
 
   return (
     <>
-      {projectId && (parent || isContentEditable) && (
-        <div className="flex items-center justify-between gap-3 text-13">
-          {parent ? (
-            <button
-              type="button"
-              className="truncate text-secondary hover:text-primary"
-              onClick={() =>
-                router.push(parentPage?.getRedirectionLink() || page.getRedirectionLink().replace(/\/[^/]+$/, `/${parent}`))
+      {projectId && isContentEditable && id && (
+        <div className="flex items-center justify-end gap-3 text-13">
+          <Button
+            variant="secondary"
+            size="sm"
+            stretch="auto"
+            label="New subpage"
+            loading={isCreatingChild}
+            onClick={async () => {
+              setIsCreatingChild(true);
+              try {
+                const child = await createPage({ name: "Untitled", parent: id, access: page.access });
+                if (child?.id) router.push(`${page.getRedirectionLink().replace(/\/[^/]+$/, "")}/${child.id}`);
+              } finally {
+                setIsCreatingChild(false);
               }
-            >
-              {parentPage?.name || "Parent page"} / {name || "Untitled"}
-            </button>
-          ) : (
-            <span />
-          )}
-          {isContentEditable && id && (
-            <Button
-              variant="secondary"
-              size="sm"
-              stretch="auto"
-              label="New subpage"
-              loading={isCreatingChild}
-              onClick={async () => {
-                setIsCreatingChild(true);
-                try {
-                  const child = await createPage({ name: "Untitled", parent: id, access: page.access });
-                  if (child?.id) router.push(`${page.getRedirectionLink().replace(/\/[^/]+$/, "")}/${child.id}`);
-                } finally {
-                  setIsCreatingChild(false);
-                }
-              }}
-            />
-          )}
+            }}
+          />
         </div>
       )}
       <div className="flex h-[48px] items-end text-left">
