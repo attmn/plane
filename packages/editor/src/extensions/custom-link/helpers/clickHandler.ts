@@ -39,7 +39,7 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
           }
 
           event.preventDefault();
-          if (target === "_self") {
+          if (target === "_self" || new URL(href, window.location.href).origin === window.location.origin) {
             window.location.assign(href);
           } else {
             window.open(href, target);
