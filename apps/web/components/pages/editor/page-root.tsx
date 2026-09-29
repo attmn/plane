@@ -4,10 +4,11 @@
  * See the LICENSE file for details.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { observer } from "mobx-react";
+import { PagesOutline } from "@makeplane/propel/icons";
 // plane imports
-import type { CollaborationState, EditorRefApi } from "@plane/editor";
+import type { CollaborationState, CommandProps, EditorRefApi, IEditorPropsExtended } from "@plane/editor";
 import { useTranslation } from "@plane/i18n";
 import type { TDocumentPayload, TPage, TPageVersion, TWebhookConnectionQueryParams } from "@plane/types";
 // hooks
@@ -21,6 +22,7 @@ import type { TPageInstance } from "@/store/pages/base-page";
 import { Banner } from "@makeplane/propel/components/banner";
 // local imports
 import { PageNavigationPaneRoot } from "../navigation-pane";
+import { CreatePageModal } from "../modals/create-page-modal";
 import { PageVersionsOverlay } from "../version";
 import { PagesVersionEditor } from "../version/editor";
 import { PageEditorBody } from "./editor-body";
@@ -64,6 +66,10 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
   const [editorReady, setEditorReady] = useState(false);
   const [collaborationState, setCollaborationState] = useState<CollaborationState | null>(null);
   const [showContentTooLargeBanner, setShowContentTooLargeBanner] = useState(false);
+  const [pendingPageLink, setPendingPageLink] = useState<{
+    editor: CommandProps["editor"];
+    position: number;
+  } | null>(null);
   // translation
   const { t } = useTranslation();
   // refs
@@ -127,6 +133,31 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
     error: errorHandler,
   };
 
+  const handleCreateSubpageCommand = useCallback(({ editor, range }: CommandProps) => {
+    editor.commands.deleteRange(range);
+    setPendingPageLink({ editor, position: range.from });
+  }, []);
+
+  const slashCommandAdditionalOptions = useMemo<NonNullable<IEditorPropsExtended["slashCommandAdditionalOptions"]>>(
+    () =>
+      projectId && page.id && isContentEditable
+        ? [
+            {
+              commandKey: "page",
+              key: "page",
+              title: "Page",
+              description: "Create a subpage in this page.",
+              searchTerms: ["subpage", "child page"],
+              icon: <PagesOutline className="size-3.5" />,
+              command: handleCreateSubpageCommand,
+              section: "general",
+              pushAfter: "text",
+            },
+          ]
+        : [],
+    [projectId, page.id, isContentEditable, handleCreateSubpageCommand]
+  );
+
   // Get extended editor extensions configuration
   const extendedEditorProps = useExtendedEditorProps({
     workspaceSlug,
@@ -136,7 +167,29 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
     getRedirectionLink: handlers.getRedirectionLink,
     extensionHandlers: editorExtensionHandlers,
     projectId,
+    slashCommandAdditionalOptions,
   });
+
+  const handleSubpageCreated = useCallback(
+    (subpage: Partial<TPage>) => {
+      if (!pendingPageLink || !subpage.id || !projectId || pendingPageLink.editor.isDestroyed) return;
+      pendingPageLink.editor.commands.insertContentAt(pendingPageLink.position, {
+        type: "text",
+        text: subpage.name || "Untitled",
+        marks: [
+          {
+            type: "link",
+            attrs: {
+              href: `/${workspaceSlug}/projects/${projectId}/pages/${subpage.id}`,
+              target: "_self",
+            },
+          },
+        ],
+      });
+      setPendingPageLink(null);
+    },
+    [pendingPageLink, projectId, workspaceSlug]
+  );
 
   const handleRestoreVersion = useCallback(
     async (descriptionHTML: string) => {
@@ -191,6 +244,18 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
           isFetchingFallbackBinary={isFetchingFallbackBinary}
           onCollaborationStateChange={setCollaborationState}
         />
+        {projectId && page.id && (
+          <CreatePageModal
+            workspaceSlug={workspaceSlug}
+            projectId={projectId}
+            storeType={storeType}
+            isModalOpen={pendingPageLink !== null}
+            handleModalClose={() => setPendingPageLink(null)}
+            pageAccess={page.access}
+            parentPageId={page.id}
+            onCreated={handleSubpageCreated}
+          />
+        )}
       </div>
       <PageNavigationPaneRoot
         storeType={storeType}

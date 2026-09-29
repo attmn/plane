@@ -21,23 +21,11 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
           return false;
         }
 
-        let a = event.target as HTMLElement;
-        const els: HTMLElement[] = [];
-
-        while (a?.nodeName !== "DIV") {
-          els.push(a);
-          a = a?.parentNode as HTMLElement;
-        }
-
-        if (!els.find((value) => value.nodeName === "A")) {
-          return false;
-        }
-
+        const link = (event.target as Element).closest("a[href]") as HTMLAnchorElement | null;
+        if (!link || !view.dom.contains(link)) return false;
         const attrs = getAttributes(view.state, options.type.name);
-        const link = event.target as HTMLLinkElement;
-
-        const href = link?.href ?? attrs.href;
-        const target = link?.target ?? attrs.target;
+        const href = link.href || attrs.href;
+        const target = link.target || attrs.target;
 
         if (link && href) {
           // Defence-in-depth: link.href is the browser-resolved URL (whitespace
@@ -50,7 +38,12 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
             return false;
           }
 
-          window.open(href, target);
+          event.preventDefault();
+          if (target === "_self") {
+            window.location.assign(href);
+          } else {
+            window.open(href, target);
+          }
 
           return true;
         }

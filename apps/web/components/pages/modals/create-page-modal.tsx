@@ -26,6 +26,8 @@ type Props = {
   handleModalClose: () => void;
   redirectionEnabled?: boolean;
   storeType: EPageStoreType;
+  parentPageId?: string;
+  onCreated?: (page: Partial<TPage>) => void;
 };
 
 export function CreatePageModal(props: Props) {
@@ -37,6 +39,8 @@ export function CreatePageModal(props: Props) {
     handleModalClose,
     redirectionEnabled = false,
     storeType,
+    parentPageId,
+    onCreated,
   } = props;
   // states
   const [pageFormData, setPageFormData] = useState<Partial<TPage>>({
@@ -65,8 +69,9 @@ export function CreatePageModal(props: Props) {
     if (!workspaceSlug || !projectId) return;
 
     try {
-      const pageData = await createPage(pageFormData);
+      const pageData = await createPage({ ...pageFormData, parent: parentPageId });
       if (pageData) {
+        onCreated?.(pageData);
         handleStateClear();
         if (redirectionEnabled) router.push(`/${workspaceSlug}/projects/${projectId}/pages/${pageData.id}`);
       }
@@ -79,7 +84,7 @@ export function CreatePageModal(props: Props) {
     <Dialog
       open={isModalOpen}
       onOpenChange={(open) => {
-        if (!open) handleModalClose();
+        if (!open) handleStateClear();
       }}
     >
       <DialogContent size="md">

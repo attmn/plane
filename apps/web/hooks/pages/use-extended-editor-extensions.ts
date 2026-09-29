@@ -4,6 +4,7 @@
  * See the LICENSE file for details.
  */
 
+import { useMemo } from "react";
 import type { IEditorPropsExtended } from "@plane/editor";
 import type { TSearchEntityRequestPayload, TSearchResponse } from "@plane/types";
 import type { TPageInstance } from "@/store/pages/base-page";
@@ -17,10 +18,13 @@ export type TExtendedEditorExtensionsHookParams = {
   getRedirectionLink: (pageId?: string) => string;
   extensionHandlers?: Map<string, unknown>;
   projectId?: string;
+  slashCommandAdditionalOptions?: IEditorPropsExtended["slashCommandAdditionalOptions"];
 };
 
 export type TExtendedEditorExtensionsConfig = IEditorPropsExtended;
 
-export const useExtendedEditorProps = (
-  _params: TExtendedEditorExtensionsHookParams
-): TExtendedEditorExtensionsConfig => ({});
+export const useExtendedEditorProps = (params: TExtendedEditorExtensionsHookParams): TExtendedEditorExtensionsConfig =>
+  useMemo(
+    () => ({ slashCommandAdditionalOptions: params.slashCommandAdditionalOptions }),
+    [params.slashCommandAdditionalOptions]
+  );

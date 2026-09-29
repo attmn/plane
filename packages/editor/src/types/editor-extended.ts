@@ -4,9 +4,13 @@
  * See the LICENSE file for details.
  */
 
+import type { TSlashCommandAdditionalOption } from "@/extensions/slash-commands/root";
+
 export type IEditorExtensionOptions = unknown;
 
-export type IEditorPropsExtended = unknown;
+export type IEditorPropsExtended = {
+  slashCommandAdditionalOptions?: TSlashCommandAdditionalOption[];
+};
 
 export type ICollaborativeDocumentEditorPropsExtended = unknown;
 
