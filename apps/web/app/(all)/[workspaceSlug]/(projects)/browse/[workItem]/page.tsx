@@ -47,7 +47,10 @@ export const IssueDetailsPage = observer(function IssueDetailsPage({ params }: R
   const { getProjectById, getProjectByIdentifier } = useProject();
   const { toggleIssueDetailSidebar, issueDetailSidebarCollapsed } = useAppTheme();
 
-  const [projectIdentifier, sequence_id] = workItem.split("-");
+  const [urlProjectIdentifier, sequence_id] = workItem.split("-");
+  // Keep links shared before the Leeloo Team move usable.
+  const projectIdentifier =
+    workspaceSlug === "leeloo" && urlProjectIdentifier === "LEELOO" ? "LLTEAM" : urlProjectIdentifier;
 
   // fetching issue details
   const { data, isLoading, error } = useSWR<TIssue, Error>(

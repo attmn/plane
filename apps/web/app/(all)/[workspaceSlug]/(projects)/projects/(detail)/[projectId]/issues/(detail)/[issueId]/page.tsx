@@ -21,12 +21,25 @@ import { IssueService } from "@/services/issue/issue.service";
 import type { Route } from "./+types/page";
 
 const issueService = new IssueService();
+const legacyLeelooProjectId = "10e37c50-4d27-40c3-b32c-48223807a895";
+const leelooTeamProjectId = "e0fec63b-0d86-4e86-85fc-e52d2dfadbaa";
 
 export async function clientLoader({ params }: Route.ClientLoaderArgs) {
   const { workspaceSlug, projectId, issueId } = params;
 
   try {
-    const data = await issueService.getIssueMetaFromURL(workspaceSlug, projectId, issueId);
+    const getIssueMeta = async () => {
+      try {
+        return await issueService.getIssueMetaFromURL(workspaceSlug, projectId, issueId);
+      } catch (error) {
+        if (workspaceSlug !== "leeloo" || projectId !== legacyLeelooProjectId) {
+          throw error;
+        }
+        // Issues moved to Leeloo Team while the wiki stayed in the original project.
+        return issueService.getIssueMetaFromURL(workspaceSlug, leelooTeamProjectId, issueId);
+      }
+    };
+    const data = await getIssueMeta();
 
     if (data) {
       throw redirect(`/${workspaceSlug}/browse/${data.project_identifier}-${data.sequence_id}`);
