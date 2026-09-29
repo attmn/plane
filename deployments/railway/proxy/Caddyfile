@@ -24,12 +24,6 @@
     handle /static/* {
         reverse_proxy plane-api.railway.internal:8000
     }
-    handle /uploads/* {
-        reverse_proxy plane-minio.railway.internal:9000
-    }
-    handle /uploads {
-        reverse_proxy plane-minio.railway.internal:9000
-    }
     handle {
         reverse_proxy plane-web.railway.internal:3000
     }
