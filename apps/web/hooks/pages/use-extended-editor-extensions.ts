@@ -19,12 +19,16 @@ export type TExtendedEditorExtensionsHookParams = {
   extensionHandlers?: Map<string, unknown>;
   projectId?: string;
   slashCommandAdditionalOptions?: IEditorPropsExtended["slashCommandAdditionalOptions"];
+  onTurnBlockIntoPage?: IEditorPropsExtended["onTurnBlockIntoPage"];
 };
 
 export type TExtendedEditorExtensionsConfig = IEditorPropsExtended;
 
 export const useExtendedEditorProps = (params: TExtendedEditorExtensionsHookParams): TExtendedEditorExtensionsConfig =>
   useMemo(
-    () => ({ slashCommandAdditionalOptions: params.slashCommandAdditionalOptions }),
-    [params.slashCommandAdditionalOptions]
+    () => ({
+      slashCommandAdditionalOptions: params.slashCommandAdditionalOptions,
+      onTurnBlockIntoPage: params.onTurnBlockIntoPage,
+    }),
+    [params.slashCommandAdditionalOptions, params.onTurnBlockIntoPage]
   );

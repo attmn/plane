@@ -111,6 +111,7 @@ export function PageRenderer(props: Props) {
                   editor={editor}
                   flaggedExtensions={flaggedExtensions}
                   disabledExtensions={disabledExtensions}
+                  extendedEditorProps={extendedEditorProps}
                 />
               </div>
             )}

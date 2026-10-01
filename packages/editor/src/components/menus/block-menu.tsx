@@ -16,19 +16,21 @@ import {
 } from "@floating-ui/react";
 import type { Editor } from "@tiptap/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CopyOutline, DeleteOutline } from "@makeplane/propel/icons";
+import { CopyOutline, DeleteOutline, PagesOutline } from "@makeplane/propel/icons";
 import type { ISvgIcons } from "@plane/blocks/icons";
 import { cn } from "@plane/utils";
 // constants
 import { CORE_EXTENSIONS } from "@/constants/extension";
 // types
-import type { IEditorProps } from "@/types";
+import type { IEditorProps, IEditorPropsExtended } from "@/types";
 // components
 import { getNodeOptions } from "./block-menu-options";
+import { canTurnBlockIntoPage, turnBlockIntoPage } from "./turn-into-page";
 
 type Props = {
   disabledExtensions?: IEditorProps["disabledExtensions"];
   editor: Editor;
+  extendedEditorProps?: IEditorPropsExtended;
   flaggedExtensions?: IEditorProps["flaggedExtensions"];
   workItemIdentifier?: IEditorProps["workItemIdentifier"];
 };
@@ -41,7 +43,8 @@ export type BlockMenuOption = {
 };
 
 export function BlockMenu(props: Props) {
-  const { editor } = props;
+  const { editor, extendedEditorProps } = props;
+  const onTurnBlockIntoPage = extendedEditorProps?.onTurnBlockIntoPage;
   const [isOpen, setIsOpen] = useState(false);
   const [isAnimatedIn, setIsAnimatedIn] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -200,6 +203,19 @@ export function BlockMenu(props: Props) {
         }
       },
     },
+    ...(onTurnBlockIntoPage
+      ? [
+          {
+            icon: PagesOutline,
+            key: "turn-into-page",
+            label: "Turn into page",
+            isDisabled: !canTurnBlockIntoPage(editor),
+            onClick: (_e: React.MouseEvent) => {
+              void turnBlockIntoPage(editor, onTurnBlockIntoPage);
+            },
+          },
+        ]
+      : []),
     ...getNodeOptions(editor),
   ];
 

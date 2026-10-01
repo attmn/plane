@@ -8,8 +8,19 @@ import type { TSlashCommandAdditionalOption } from "@/extensions/slash-commands/
 
 export type IEditorExtensionOptions = unknown;
 
+export type TTurnBlockIntoPagePayload = {
+  title: string;
+  descriptionHTML: string;
+};
+
+export type TTurnBlockIntoPageResult = {
+  href: string;
+  title: string;
+};
+
 export type IEditorPropsExtended = {
   slashCommandAdditionalOptions?: TSlashCommandAdditionalOption[];
+  onTurnBlockIntoPage?: (payload: TTurnBlockIntoPagePayload) => Promise<TTurnBlockIntoPageResult | undefined>;
 };
 
 export type ICollaborativeDocumentEditorPropsExtended = unknown;

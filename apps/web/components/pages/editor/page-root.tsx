@@ -9,12 +9,14 @@ import { observer } from "mobx-react";
 import { PagesOutline } from "@makeplane/propel/icons";
 // plane imports
 import type { CollaborationState, CommandProps, EditorRefApi, IEditorPropsExtended } from "@plane/editor";
+import { setToast } from "@plane/blocks/toast";
 import { useTranslation } from "@plane/i18n";
 import type { TDocumentPayload, TPage, TPageVersion, TWebhookConnectionQueryParams } from "@plane/types";
 // hooks
 import { usePageFallback } from "@/hooks/use-page-fallback";
 import type { PageUpdateHandler, TCustomEventHandlers } from "@/hooks/use-realtime-page-events";
 import { usePagesPaneExtensions, useExtendedEditorProps } from "@/hooks/pages";
+import { usePageStore } from "@/hooks/store";
 import type { EPageStoreType } from "@/hooks/store";
 // store
 import type { TPageInstance } from "@/store/pages/base-page";
@@ -70,6 +72,8 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
     editor: CommandProps["editor"];
     position: number;
   } | null>(null);
+  // store hooks
+  const { createPage } = usePageStore(storeType);
   // translation
   const { t } = useTranslation();
   // refs
@@ -158,6 +162,31 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
     [projectId, page.id, isContentEditable, handleCreateSubpageCommand]
   );
 
+  const onTurnBlockIntoPage = useCallback<NonNullable<IEditorPropsExtended["onTurnBlockIntoPage"]>>(
+    async ({ title, descriptionHTML }) => {
+      if (!projectId || !page.id) return undefined;
+      try {
+        const subpage = await createPage({
+          name: title,
+          description_html: descriptionHTML,
+          parent: page.id,
+          access: page.access,
+        });
+        if (!subpage?.id) throw new Error("The page was not created.");
+        return { href: `/${workspaceSlug}/projects/${projectId}/pages/${subpage.id}`, title: subpage.name || title };
+      } catch (error) {
+        console.error(error);
+        setToast({
+          type: "error",
+          title: "Error!",
+          message: "The block could not be turned into a page. Please try again.",
+        });
+        return undefined;
+      }
+    },
+    [createPage, page, projectId, workspaceSlug]
+  );
+
   // Get extended editor extensions configuration
   const extendedEditorProps = useExtendedEditorProps({
     workspaceSlug,
@@ -168,6 +197,7 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
     extensionHandlers: editorExtensionHandlers,
     projectId,
     slashCommandAdditionalOptions,
+    onTurnBlockIntoPage: projectId && page.id && isContentEditable ? onTurnBlockIntoPage : undefined,
   });
 
   const handleSubpageCreated = useCallback(
