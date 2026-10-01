@@ -526,14 +526,17 @@ class SearchEndpoint(BaseAPIView):
                         for field in fields:
                             q |= Q(**{f"{field}__icontains": query})
 
+                    # public pages and the user's own private pages, as in the Pages list
                     pages = (
                         Page.objects.filter(
                             q,
+                            Q(access=0) | Q(owned_by=self.request.user),
                             projects__project_projectmember__member=self.request.user,
                             projects__project_projectmember__is_active=True,
                             projects__id=project_id,
+                            project_pages__deleted_at__isnull=True,
+                            archived_at__isnull=True,
                             workspace__slug=slug,
-                            access=0,
                         )
                         .order_by("-created_at")
                         .distinct()

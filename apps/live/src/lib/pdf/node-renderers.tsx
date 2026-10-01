@@ -343,7 +343,8 @@ export const nodeRenderers: NodeRendererRegistry = {
     const entityIdentifier = (node.attrs?.entity_identifier as string) || "";
     const entityName = (node.attrs?.entity_name as string) || "";
 
-    let displayText = entityName || id || entityIdentifier;
+    // page mentions carry no title, and the export has no page metadata to resolve one
+    let displayText = entityName === "page_mention" ? "page" : entityName || id || entityIdentifier;
 
     if (ctx.metadata && (entityName === "user_mention" || entityName === "user")) {
       const userMention = ctx.metadata.userMentions?.find((u) => u.id === entityIdentifier || u.id === id);
