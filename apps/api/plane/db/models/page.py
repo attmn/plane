@@ -14,6 +14,7 @@ from django.db import models
 from plane.utils.html_processor import strip_tags
 
 from .base import BaseModel
+from .project import ProjectBaseModel
 
 
 def get_view_props():
@@ -180,3 +181,39 @@ class PageVersion(BaseModel):
             else strip_tags(self.description_html)
         )
         super(PageVersion, self).save(*args, **kwargs)
+
+
+class PageComment(ProjectBaseModel):
+    """
+    A comment on a page. A comment with no parent starts a thread; replies point at it.
+    An inline thread carries the anchor_id stored on the matching comment mark in the page content.
+    """
+
+    page = models.ForeignKey("db.Page", on_delete=models.CASCADE, related_name="page_comments")
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="page_comment_replies"
+    )
+    anchor_id = models.CharField(max_length=255, null=True, blank=True)
+    comment_html = models.TextField(blank=True, default="<p></p>")
+    comment_stripped = models.TextField(blank=True, default="")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="page_comments")
+    edited_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="resolved_page_comments",
+    )
+
+    class Meta:
+        verbose_name = "Page Comment"
+        verbose_name_plural = "Page Comments"
+        db_table = "page_comments"
+        ordering = ("created_at",)
+        indexes = [models.Index(fields=["page", "parent"], name="page_comment_page_parent_idx")]
+
+    def save(self, *args, **kwargs):
+        self.comment_stripped = strip_tags(self.comment_html) if self.comment_html else ""
+        super(PageComment, self).save(*args, **kwargs)

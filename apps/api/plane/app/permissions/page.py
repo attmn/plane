@@ -136,3 +136,15 @@ class ProjectPagePermission(BasePermission):
         if not project_member_exists:
             return False
         return True
+
+
+class ProjectPageCommentPermission(ProjectPagePermission):
+    """
+    Page comments follow page access, except that members may also DELETE: deleting your own
+    comment and reopening a thread both use DELETE. The view checks authorship for deletes.
+    """
+
+    def _check_project_action_access(self, request, role):
+        if request.method == "DELETE":
+            return role in [ADMIN, MEMBER]
+        return super()._check_project_action_access(request, role)

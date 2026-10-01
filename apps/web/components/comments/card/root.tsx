@@ -25,6 +25,8 @@ type TCommentCard = {
   enableReplies: boolean;
   disabled?: boolean;
   projectId?: string;
+  // page comments have no reactions
+  showReactions?: boolean;
 };
 
 export const CommentCard = observer(function CommentCard(props: TCommentCard) {
@@ -38,6 +40,7 @@ export const CommentCard = observer(function CommentCard(props: TCommentCard) {
     showCopyLinkOption,
     disabled = false,
     projectId,
+    showReactions = true,
   } = props;
   // states
   const [isEditing, setIsEditing] = useState(false);
@@ -58,6 +61,7 @@ export const CommentCard = observer(function CommentCard(props: TCommentCard) {
         projectId={projectId}
         readOnlyEditorRef={readOnlyEditorRef}
         showAccessSpecifier={showAccessSpecifier}
+        showReactions={showReactions}
         workspaceId={workspaceId}
         workspaceSlug={workspaceSlug}
         isEditing={isEditing}

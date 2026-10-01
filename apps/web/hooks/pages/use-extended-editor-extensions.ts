@@ -20,6 +20,7 @@ export type TExtendedEditorExtensionsHookParams = {
   projectId?: string;
   slashCommandAdditionalOptions?: IEditorPropsExtended["slashCommandAdditionalOptions"];
   onTurnBlockIntoPage?: IEditorPropsExtended["onTurnBlockIntoPage"];
+  onCreateComment?: IEditorPropsExtended["onCreateComment"];
 };
 
 export type TExtendedEditorExtensionsConfig = IEditorPropsExtended;
@@ -29,6 +30,7 @@ export const useExtendedEditorProps = (params: TExtendedEditorExtensionsHookPara
     () => ({
       slashCommandAdditionalOptions: params.slashCommandAdditionalOptions,
       onTurnBlockIntoPage: params.onTurnBlockIntoPage,
+      onCreateComment: params.onCreateComment,
     }),
-    [params.slashCommandAdditionalOptions, params.onTurnBlockIntoPage]
+    [params.slashCommandAdditionalOptions, params.onTurnBlockIntoPage, params.onCreateComment]
   );

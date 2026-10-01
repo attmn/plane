@@ -9,6 +9,7 @@ import type { Editor } from "@tiptap/core";
 import { BubbleMenu, useEditorState } from "@tiptap/react";
 import type { BubbleMenuProps } from "@tiptap/react";
 import { useEffect, useState, useRef } from "react";
+import { ChatOutline } from "@makeplane/propel/icons";
 // plane utils
 import { cn } from "@plane/utils";
 // components
@@ -30,6 +31,8 @@ import { COLORS_LIST } from "@/constants/common";
 import { CORE_EXTENSIONS } from "@/constants/extension";
 // extensions
 import { isCellSelection } from "@/extensions/table/table/utilities/helpers";
+// helpers
+import { createCommentFromSelection } from "@/helpers/comment";
 // types
 import type { IEditorPropsExtended, TEditorCommands, TExtensions } from "@/types";
 // local imports
@@ -73,7 +76,8 @@ type Props = {
 };
 
 export function EditorBubbleMenu(props: Props) {
-  const { editor } = props;
+  const { editor, extendedEditorProps } = props;
+  const onCreateComment = extendedEditorProps?.onCreateComment;
   // states
   const [isSelecting, setIsSelecting] = useState(false);
   // refs
@@ -227,6 +231,21 @@ export function EditorBubbleMenu(props: Props) {
             ))}
           </div>
           <TextAlignmentSelector editor={editor} editorState={editorState} />
+          {onCreateComment && (
+            <div className="px-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  createCommentFromSelection(editor, onCreateComment);
+                }}
+                className="flex h-7 items-center gap-1 rounded-sm px-1.5 text-11 font-medium text-tertiary transition-colors hover:bg-layer-1 active:bg-layer-1"
+              >
+                <ChatOutline className="size-4" />
+                Comment
+              </button>
+            </div>
+          )}
         </div>
       )}
     </BubbleMenu>

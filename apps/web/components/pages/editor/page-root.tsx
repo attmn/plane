@@ -23,6 +23,8 @@ import type { TPageInstance } from "@/store/pages/base-page";
 // ui
 import { Banner } from "@makeplane/propel/components/banner";
 // local imports
+import { PageCommentsProvider, usePageCommentsContext } from "../comments/context";
+import { PageCommentHighlights } from "../comments/highlights";
 import { PageNavigationPaneRoot } from "../navigation-pane";
 import { CreatePageModal } from "../modals/create-page-modal";
 import { PageVersionsOverlay } from "../version";
@@ -54,6 +56,23 @@ type TPageRootProps = {
 };
 
 export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
+  const { page, projectId, workspaceSlug } = props;
+  // members and admins can comment; archived pages are read-only
+  const canComment = !!projectId && !page.archived_at && page.canCurrentUserFavoritePage;
+
+  return (
+    <PageCommentsProvider
+      workspaceSlug={workspaceSlug}
+      projectId={projectId}
+      pageId={page.id ?? ""}
+      canComment={canComment}
+    >
+      <PageRootContent {...props} />
+    </PageCommentsProvider>
+  );
+});
+
+const PageRootContent = observer(function PageRootContent(props: TPageRootProps) {
   const {
     config,
     handlers,
@@ -187,6 +206,8 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
     [createPage, page, projectId, workspaceSlug]
   );
 
+  const pageComments = usePageCommentsContext();
+
   // Get extended editor extensions configuration
   const extendedEditorProps = useExtendedEditorProps({
     workspaceSlug,
@@ -198,6 +219,7 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
     projectId,
     slashCommandAdditionalOptions,
     onTurnBlockIntoPage: projectId && page.id && isContentEditable ? onTurnBlockIntoPage : undefined,
+    onCreateComment: pageComments?.canComment ? pageComments.startInlineComment : undefined,
   });
 
   const handleSubpageCreated = useCallback(
@@ -256,6 +278,7 @@ export const PageRoot = observer(function PageRoot(props: TPageRootProps) {
         {showContentTooLargeBanner && (
           <Banner placement="page" variant="warning" title={t("page_content_limit_banner.message")} />
         )}
+        <PageCommentHighlights />
         <PageEditorBody
           config={config}
           customRealtimeEventHandlers={mergedCustomEventHandlers}

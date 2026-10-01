@@ -33,6 +33,7 @@ export type TCommentCardDisplayProps = {
   projectId?: string;
   readOnlyEditorRef: React.RefObject<EditorRefApi | null>;
   showAccessSpecifier: boolean;
+  showReactions?: boolean;
   workspaceId: string;
   workspaceSlug: string;
   isEditing?: boolean;
@@ -49,6 +50,7 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
     projectId,
     readOnlyEditorRef,
     showAccessSpecifier,
+    showReactions = true,
     workspaceId,
     workspaceSlug,
     isEditing = false,
@@ -104,7 +106,7 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
     [activityOperations, comment.id, userReactions]
   );
 
-  const shouldRenderReactions = hasReactions && !disabled;
+  const shouldRenderReactions = showReactions && hasReactions && !disabled;
 
   return (
     <div id={commentBlockId} className="relative flex flex-col gap-2">
@@ -138,14 +140,16 @@ export const CommentCardDisplay = observer(function CommentCardDisplay(props: TC
         </div>
         {!disabled && (
           <div className="flex shrink-0 items-center gap-1">
-            <EmojiReactionPicker
-              isOpen={isPickerOpen}
-              handleToggle={setIsPickerOpen}
-              onChange={handleEmojiSelect}
-              disabled={disabled}
-              label={<EmojiReactionButton onAddReaction={() => setIsPickerOpen(true)} />}
-              placement="bottom-start"
-            />
+            {showReactions && (
+              <EmojiReactionPicker
+                isOpen={isPickerOpen}
+                handleToggle={setIsPickerOpen}
+                onChange={handleEmojiSelect}
+                disabled={disabled}
+                label={<EmojiReactionButton onAddReaction={() => setIsPickerOpen(true)} />}
+                placement="bottom-start"
+              />
+            )}
             {renderQuickActions ? renderQuickActions() : null}
           </div>
         )}
