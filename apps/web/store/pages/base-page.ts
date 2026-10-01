@@ -39,6 +39,7 @@ export type TBasePage = TPage & {
   restore: (params: { shouldSync?: boolean }) => Promise<void>;
   updatePageLogo: (value: ChangeHandlerPayload) => Promise<void>;
   toggleSidebarPin: () => Promise<void>;
+  updateTreePosition: (position: { parent?: string | null; sort_order: number }) => Promise<void>;
   addToFavorites: () => Promise<void>;
   removePageFromFavorites: () => Promise<void>;
   duplicate: () => Promise<TPage | undefined>;
@@ -88,6 +89,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
   name: string | undefined;
   logo_props: TLogoProps | undefined;
   view_props: TPageViewProps | undefined;
+  sort_order: number | undefined;
   description_json: object | undefined;
   description_html: string | undefined;
   color: string | undefined;
@@ -127,6 +129,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
     this.name = page?.name;
     this.logo_props = page?.logo_props || undefined;
     this.view_props = page?.view_props || undefined;
+    this.sort_order = page?.sort_order;
     this.description_json = page?.description_json || undefined;
     this.description_html = page?.description_html || undefined;
     this.color = page?.color || undefined;
@@ -154,6 +157,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       name: observable.ref,
       logo_props: observable.ref,
       view_props: observable.ref,
+      sort_order: observable.ref,
       description_json: observable.ref,
       description_html: observable.ref,
       color: observable.ref,
@@ -191,6 +195,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       restore: action,
       updatePageLogo: action,
       toggleSidebarPin: action,
+      updateTreePosition: action,
       addToFavorites: action,
       removePageFromFavorites: action,
       duplicate: action,
@@ -240,6 +245,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       access: this.access,
       logo_props: this.logo_props,
       view_props: this.view_props,
+      sort_order: this.sort_order,
       is_favorite: this.is_favorite,
       is_locked: this.is_locked,
       archived_at: this.archived_at,
@@ -506,6 +512,26 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
     } catch (error) {
       runInAction(() => {
         this.view_props = originalViewProps;
+      });
+      throw error;
+    }
+  };
+
+  /**
+   * @description move the page in the sidebar tree: a new position among its siblings, and optionally a new parent
+   */
+  updateTreePosition = async (position: { parent?: string | null; sort_order: number }) => {
+    const original = { parent: this.parent, sort_order: this.sort_order };
+    runInAction(() => {
+      if (position.parent !== undefined) this.parent = position.parent;
+      this.sort_order = position.sort_order;
+    });
+    try {
+      await this.services.update(position);
+    } catch (error) {
+      runInAction(() => {
+        this.parent = original.parent;
+        this.sort_order = original.sort_order;
       });
       throw error;
     }

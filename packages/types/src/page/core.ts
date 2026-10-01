@@ -29,6 +29,8 @@ export type TPage = {
   workspace: string | undefined;
   logo_props: TLogoProps | undefined;
   view_props?: TPageViewProps;
+  // position among sibling pages in the sidebar tree, lowest first
+  sort_order?: number;
   deleted_at: Date | undefined;
 } & TPageExtended;
 
