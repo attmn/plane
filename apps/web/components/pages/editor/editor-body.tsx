@@ -137,7 +137,7 @@ export const PageEditorBody = observer(function PageEditorBody(props: Props) {
   } = page;
   const workspaceId = getWorkspaceBySlug(workspaceSlug)?.id ?? "";
   // use editor mention
-  const { fetchMentions } = useEditorMention({
+  const { fetchMentions, getMentionedEntityDetails } = useEditorMention({
     enableAdvancedMentions: true,
     searchEntity: handlers.fetchEntity,
   });
@@ -292,7 +292,7 @@ export const PageEditorBody = observer(function PageEditorBody(props: Props) {
               },
               // oxlint-disable-next-line no-shadow
               renderComponent: (props) => <EditorMentionsRoot {...props} />,
-              getMentionedEntityDetails: (id: string) => ({ display_name: getUserDetails(id)?.display_name ?? "" }),
+              getMentionedEntityDetails,
             }}
             updatePageProperties={updatePageProperties}
             realtimeConfig={realtimeConfig}

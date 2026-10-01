@@ -12,7 +12,6 @@ import type { MakeOptional, TSearchEntityRequestPayload, TSearchResponse } from 
 import { cn } from "@plane/utils";
 // hooks
 import { useEditorConfig, useEditorMention } from "@/hooks/editor";
-import { useMember } from "@/hooks/store/use-member";
 import { useParseEditorContent } from "@/hooks/use-parse-editor-content";
 import { useEditorFlagging } from "@/hooks/use-editor-flagging";
 // local imports
@@ -52,8 +51,6 @@ export const DocumentEditor = forwardRef(function DocumentEditor(
     disabledExtensions: additionalDisabledExtensions = [],
     ...rest
   } = props;
-  // store hooks
-  const { getUserDetails } = useMember();
   // parse content
   const { getEditorMetaData } = useParseEditorContent({
     projectId,
@@ -65,7 +62,7 @@ export const DocumentEditor = forwardRef(function DocumentEditor(
     projectId,
   });
   // use editor mention
-  const { fetchMentions } = useEditorMention({
+  const { fetchMentions, getMentionedEntityDetails } = useEditorMention({
     enableAdvancedMentions: true,
     searchEntity: editable ? async (payload) => await props.searchMentionCallback(payload) : async () => ({}),
   });
@@ -93,7 +90,7 @@ export const DocumentEditor = forwardRef(function DocumentEditor(
           return res;
         },
         renderComponent: EditorMentionsRoot,
-        getMentionedEntityDetails: (id: string) => ({ display_name: getUserDetails(id)?.display_name ?? "" }),
+        getMentionedEntityDetails,
       }}
       extendedEditorProps={extendedEditorProps ?? {}}
       {...rest}
