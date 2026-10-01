@@ -5,6 +5,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
+import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { attachInstruction, extractInstruction } from "@atlaskit/pragmatic-drag-and-drop-hitbox/tree-item";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -12,6 +15,7 @@ import { IconButton } from "@makeplane/propel/components/icon-button";
 import { Icon } from "@makeplane/propel/components/icon";
 import { AddOutline, ChevronDownOutline, ChevronRightOutline, PagesOutline } from "@makeplane/propel/icons";
 // plane imports
+import { DropIndicator } from "@plane/blocks/common";
 import { Logo } from "@plane/blocks/emoji-icon-picker";
 import { setToast } from "@plane/blocks/toast";
 import { EPageAccess } from "@plane/types";
@@ -24,6 +28,8 @@ import { useAppRouter } from "@/hooks/use-app-router";
 import useLocalStorage from "@/hooks/use-local-storage";
 // store
 import type { TProjectPage } from "@/store/pages/project-page";
+// local imports
+import { DEFAULT_PAGE_SORT_ORDER, planSortOrder } from "./page-tree-order";
 
 type TProjectPagesTreeProps = {
   workspaceSlug: string;
@@ -41,6 +47,19 @@ const INDENT_PX = 12;
 const byName = (a: TProjectPage, b: TProjectPage) =>
   getPageName(a.name).localeCompare(getPageName(b.name), undefined, { sensitivity: "base", numeric: true });
 
+// dragged pages keep the position they were dropped at; pages nobody has moved share the default and sort A–Z
+const byTreeOrder = (a: TProjectPage, b: TProjectPage) =>
+  (a.sort_order ?? DEFAULT_PAGE_SORT_ORDER) - (b.sort_order ?? DEFAULT_PAGE_SORT_ORDER) || byName(a, b);
+
+const PAGE_DRAG_TYPE = "SIDEBAR_PAGE";
+
+type TPageDragData = { type: typeof PAGE_DRAG_TYPE; pageId: string; projectId: string };
+
+const isPageDragData = (data: Record<string | symbol, unknown>): data is TPageDragData =>
+  data.type === PAGE_DRAG_TYPE && typeof data.pageId === "string";
+
+type TDropInstruction = "reorder-above" | "reorder-below" | "make-child";
+
 export const isSidebarPinnedPage = (page: TProjectPage) => !!page.view_props?.sidebar_pinned && !page.archived_at;
 
 const getVisibleProjectPages = (
@@ -51,6 +70,71 @@ const getVisibleProjectPages = (
   getCurrentProjectPageIds(projectId)
     .map((id) => getPageById(id))
     .filter((page): page is TProjectPage => !!page?.id && !page.archived_at);
+
+// the parent a page is shown under in the sidebar: pages whose parent isn't visible (archived, someone's private page)
+// sit at the top level
+const getTreeParentId = (page: TProjectPage, visiblePageIds: Set<string | undefined>) =>
+  page.parent && page.parent !== page.id && visiblePageIds.has(page.parent) ? page.parent : null;
+
+const isSameOrAncestor = (
+  candidateId: string,
+  pageId: string,
+  getPageById: (pageId: string) => TProjectPage | undefined
+) => {
+  const visited = new Set<string>();
+  let current: string | null | undefined = pageId;
+  while (current && !visited.has(current)) {
+    if (current === candidateId) return true;
+    visited.add(current);
+    current = getPageById(current)?.parent;
+  }
+  return false;
+};
+
+/**
+ * Moves a page in the sidebar tree for everyone: under `parentId` (null = top level), before or after a sibling, or
+ * last when no sibling is given. Siblings are renumbered when their saved order can't hold the new position.
+ */
+const usePageTreeMove = (projectId: string) => {
+  const { getCurrentProjectPageIds, getPageById } = usePageStore(EPageStoreType.PROJECT);
+  return useCallback(
+    async (pageId: string, parentId: string | null, position: { beforeId?: string; afterId?: string } = {}) => {
+      const page = getPageById(pageId);
+      if (!page) return;
+      if (parentId && isSameOrAncestor(pageId, parentId, getPageById)) return;
+      const pages = getVisibleProjectPages(projectId, getCurrentProjectPageIds, getPageById);
+      const visiblePageIds = new Set(pages.map((p) => p.id));
+      const siblings = pages
+        .filter(
+          (p) =>
+            p.id !== pageId &&
+            getTreeParentId(p, visiblePageIds) === parentId &&
+            !(parentId === null && isSidebarPinnedPage(p))
+        )
+        .sort(byTreeOrder);
+      const anchorId = position.beforeId ?? position.afterId;
+      const anchorIndex = anchorId ? siblings.findIndex((p) => p.id === anchorId) : -1;
+      const insertIndex = anchorIndex === -1 ? siblings.length : position.beforeId ? anchorIndex : anchorIndex + 1;
+      const plan = planSortOrder(
+        siblings.map((p) => ({ id: p.id!, sortOrder: p.sort_order ?? DEFAULT_PAGE_SORT_ORDER })),
+        insertIndex
+      );
+      const isNewParent = getTreeParentId(page, visiblePageIds) !== parentId;
+      try {
+        await Promise.all([
+          page.updateTreePosition({ sort_order: plan.sortOrder, ...(isNewParent ? { parent: parentId } : {}) }),
+          ...plan.renumbered.map((sibling) =>
+            getPageById(sibling.id)?.updateTreePosition({ sort_order: sibling.sortOrder })
+          ),
+        ]);
+      } catch (error) {
+        console.error(error);
+        setToast({ type: "error", title: "Error!", message: "The page could not be moved. Please try again." });
+      }
+    },
+    [projectId, getCurrentProjectPageIds, getPageById]
+  );
+};
 
 /**
  * Pages shown as their own items next to "Pages" in the project sidebar, for everyone in the project.
@@ -142,6 +226,19 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
     [expandedIds, setStoredExpandedIds]
   );
 
+  const movePage = usePageTreeMove(projectId);
+  const handleDrop = (pageId: string, target: TProjectPage, instruction: TDropInstruction) => {
+    if (!target.id) return;
+    if (instruction === "make-child") {
+      if (!expandedIds.has(target.id)) setStoredExpandedIds([...expandedIds, target.id]);
+      void movePage(pageId, target.id);
+      return;
+    }
+    // a top-level row of a pinned page's subtree sits under that pinned page
+    const parentId = rootPageId && target.parent === rootPageId ? rootPageId : getTreeParentId(target, pageIds);
+    void movePage(pageId, parentId, instruction === "reorder-above" ? { beforeId: target.id } : { afterId: target.id });
+  };
+
   const handleCreate = async (parentPage: TProjectPage | null) => {
     const parent = parentPage ?? (rootPageId ? (getPageById(rootPageId) ?? null) : null);
     if (creatingParentId !== undefined) return;
@@ -168,7 +265,7 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
   const addRow = (page: TProjectPage, depth: number) => {
     if (!page.id || visited.has(page.id)) return;
     visited.add(page.id);
-    const children = [...(childrenByParent.get(page.id) ?? [])].sort(byName);
+    const children = [...(childrenByParent.get(page.id) ?? [])].sort(byTreeOrder);
     const isExpanded = expandedIds.has(page.id);
     rows.push({ page, depth, hasChildren: children.length > 0, isExpanded });
     if (isExpanded) children.forEach((child) => addRow(child, depth + 1));
@@ -177,65 +274,28 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
   const treeRoots = rootPageId
     ? (childrenByParent.get(rootPageId) ?? [])
     : rootPages.filter((p) => !isSidebarPinnedPage(p));
-  [...treeRoots].sort(byName).forEach((page) => addRow(page, 0));
+  [...treeRoots].sort(byTreeOrder).forEach((page) => addRow(page, 0));
 
   return (
     <div className="flex flex-col gap-0.5" role="tree" aria-label={rootPageId ? "Subpages" : "Pages"}>
-      {rows.map(({ page, depth, hasChildren, isExpanded }) => {
-        const pageName = getPageName(page.name);
-        return (
-          <div key={page.id} role="treeitem" aria-expanded={hasChildren ? isExpanded : undefined}>
-            <Link href={`/${workspaceSlug}/projects/${projectId}/pages/${page.id}`} onClick={onNavigate}>
-              <SidebarNavItem isActive={page.id === activePageId} className="py-0.5 pr-1">
-                <div className="flex min-w-0 flex-1 items-center gap-1" style={{ paddingLeft: depth * INDENT_PX }}>
-                  {hasChildren ? (
-                    <button
-                      type="button"
-                      className="grid size-4 flex-shrink-0 place-items-center rounded-sm text-tertiary hover:bg-layer-1"
-                      aria-label={`${isExpanded ? "Collapse" : "Expand"} ${pageName}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggle(page.id!);
-                      }}
-                    >
-                      {isExpanded ? (
-                        <ChevronDownOutline className="size-3.5" />
-                      ) : (
-                        <ChevronRightOutline className="size-3.5" />
-                      )}
-                    </button>
-                  ) : (
-                    <span className="size-4 flex-shrink-0" aria-hidden="true" />
-                  )}
-                  {page.logo_props?.in_use ? (
-                    <Logo logo={page.logo_props} size={14} type="lucide" />
-                  ) : (
-                    <PagesOutline className="size-3.5 flex-shrink-0 text-tertiary" />
-                  )}
-                  <span className="truncate text-11 font-medium">{pageName}</span>
-                </div>
-                {canCreatePages && (
-                  <span className="hidden flex-shrink-0 group-hover:inline-flex">
-                    <IconButton
-                      variant="ghost"
-                      size="xs"
-                      icon={<Icon icon={AddOutline} />}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        void handleCreate(page);
-                      }}
-                      disabled={creatingParentId !== undefined}
-                      aria-label={`Add a page inside ${pageName}`}
-                    />
-                  </span>
-                )}
-              </SidebarNavItem>
-            </Link>
-          </div>
-        );
-      })}
+      {rows.map(({ page, depth, hasChildren, isExpanded }) => (
+        <PageTreeRow
+          key={page.id}
+          workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          page={page}
+          depth={depth}
+          hasChildren={hasChildren}
+          isExpanded={isExpanded}
+          isActive={page.id === activePageId}
+          canCreatePages={canCreatePages}
+          isCreating={creatingParentId !== undefined}
+          onToggle={toggle}
+          onCreate={(parent) => void handleCreate(parent)}
+          onDrop={handleDrop}
+          onNavigate={onNavigate}
+        />
+      ))}
       {canCreatePages && (
         <button
           type="button"
@@ -248,6 +308,159 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
           New page
         </button>
       )}
+    </div>
+  );
+});
+
+type TPageTreeRowProps = {
+  workspaceSlug: string;
+  projectId: string;
+  page: TProjectPage;
+  depth: number;
+  hasChildren: boolean;
+  isExpanded: boolean;
+  isActive: boolean;
+  canCreatePages: boolean;
+  isCreating: boolean;
+  onToggle: (pageId: string) => void;
+  onCreate: (parent: TProjectPage) => void;
+  onDrop: (pageId: string, target: TProjectPage, instruction: TDropInstruction) => void;
+  onNavigate?: () => void;
+};
+
+/**
+ * One page in the sidebar tree. Drag it to reorder (drop above or below a page) or to nest (drop onto a page).
+ * Drag and drop is modelled on the sidebar's project list (workspace/sidebar/projects-list-item.tsx).
+ */
+const PageTreeRow = observer(function PageTreeRow(props: TPageTreeRowProps) {
+  const {
+    workspaceSlug,
+    projectId,
+    page,
+    depth,
+    hasChildren,
+    isExpanded,
+    isActive,
+    canCreatePages,
+    isCreating,
+    onToggle,
+    onCreate,
+    onDrop,
+    onNavigate,
+  } = props;
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [instruction, setInstruction] = useState<TDropInstruction | undefined>(undefined);
+  const { getPageById } = usePageStore(EPageStoreType.PROJECT);
+  // moving a page changes the tree for everyone, so it needs edit rights; a locked page stays where it is
+  const canDrag = page.canCurrentUserEditPage && !page.is_locked;
+  const pageName = getPageName(page.name);
+
+  useEffect(() => {
+    const element = rowRef.current;
+    if (!element || !page.id) return;
+    const pageId = page.id;
+    const readInstruction = (data: Record<string | symbol, unknown>): TDropInstruction | undefined => {
+      const type = extractInstruction(data)?.type;
+      return type === "reorder-above" || type === "reorder-below" || type === "make-child" ? type : undefined;
+    };
+    return combine(
+      draggable({
+        element,
+        canDrag: () => canDrag,
+        getInitialData: (): TPageDragData => ({ type: PAGE_DRAG_TYPE, pageId, projectId }),
+        onDragStart: () => setIsDragging(true),
+        onDrop: () => setIsDragging(false),
+      }),
+      dropTargetForElements({
+        element,
+        canDrop: ({ source }) =>
+          isPageDragData(source.data) &&
+          source.data.projectId === projectId &&
+          !isSameOrAncestor(source.data.pageId, pageId, getPageById),
+        // oxlint-disable-next-line no-shadow
+        getData: ({ input, element }) =>
+          attachInstruction(
+            { pageId },
+            {
+              input,
+              element,
+              currentLevel: depth,
+              indentPerLevel: INDENT_PX,
+              mode: hasChildren && isExpanded ? "expanded" : "standard",
+            }
+          ),
+        onDrag: ({ self }) => setInstruction(readInstruction(self.data)),
+        onDragLeave: () => setInstruction(undefined),
+        onDrop: ({ self, source }) => {
+          setInstruction(undefined);
+          const dropInstruction = readInstruction(self.data);
+          if (dropInstruction && isPageDragData(source.data)) onDrop(source.data.pageId, page, dropInstruction);
+        },
+      })
+    );
+  }, [page, projectId, depth, hasChildren, isExpanded, canDrag, getPageById, onDrop]);
+
+  return (
+    <div
+      ref={rowRef}
+      role="treeitem"
+      aria-expanded={hasChildren ? isExpanded : undefined}
+      className={cn("relative", { "opacity-50": isDragging })}
+    >
+      <DropIndicator classNames="absolute top-0" isVisible={instruction === "reorder-above"} />
+      <Link href={`/${workspaceSlug}/projects/${projectId}/pages/${page.id}`} onClick={onNavigate} draggable={false}>
+        <SidebarNavItem
+          isActive={isActive}
+          className={cn("py-0.5 pr-1", { "ring-accent-primary ring-1": instruction === "make-child" })}
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-1" style={{ paddingLeft: depth * INDENT_PX }}>
+            {hasChildren ? (
+              <button
+                type="button"
+                className="grid size-4 flex-shrink-0 place-items-center rounded-sm text-tertiary hover:bg-layer-1"
+                aria-label={`${isExpanded ? "Collapse" : "Expand"} ${pageName}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (page.id) onToggle(page.id);
+                }}
+              >
+                {isExpanded ? (
+                  <ChevronDownOutline className="size-3.5" />
+                ) : (
+                  <ChevronRightOutline className="size-3.5" />
+                )}
+              </button>
+            ) : (
+              <span className="size-4 flex-shrink-0" aria-hidden="true" />
+            )}
+            {page.logo_props?.in_use ? (
+              <Logo logo={page.logo_props} size={14} type="lucide" />
+            ) : (
+              <PagesOutline className="size-3.5 flex-shrink-0 text-tertiary" />
+            )}
+            <span className="truncate text-11 font-medium">{pageName}</span>
+          </div>
+          {canCreatePages && (
+            <span className="hidden flex-shrink-0 group-hover:inline-flex">
+              <IconButton
+                variant="ghost"
+                size="xs"
+                icon={<Icon icon={AddOutline} />}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCreate(page);
+                }}
+                disabled={isCreating}
+                aria-label={`Add a page inside ${pageName}`}
+              />
+            </span>
+          )}
+        </SidebarNavItem>
+      </Link>
+      <DropIndicator classNames="absolute bottom-0" isVisible={instruction === "reorder-below"} />
     </div>
   );
 });
@@ -279,36 +492,63 @@ export const PinnedPageNavItem = observer(function PinnedPageNavItem(props: TPin
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- open when the user navigates into this subtree
   }, [isInSubtree, isActive]);
 
+  // dropping a page onto the pinned item nests it as the pinned page's last subpage
+  const movePage = usePageTreeMove(projectId);
+  const itemRef = useRef<HTMLDivElement | null>(null);
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  useEffect(() => {
+    const element = itemRef.current;
+    if (!element || !page.id) return;
+    const pageId = page.id;
+    return dropTargetForElements({
+      element,
+      canDrop: ({ source }) =>
+        isPageDragData(source.data) &&
+        source.data.projectId === projectId &&
+        !isSameOrAncestor(source.data.pageId, pageId, getPageById),
+      onDragEnter: () => setIsDropTarget(true),
+      onDragLeave: () => setIsDropTarget(false),
+      onDrop: ({ source }) => {
+        setIsDropTarget(false);
+        if (!isPageDragData(source.data)) return;
+        if (!isOpen) setIsOpen(true);
+        void movePage(source.data.pageId, pageId);
+      },
+    });
+  }, [page.id, projectId, getPageById, movePage, isOpen, setIsOpen]);
+
   const pageName = getPageName(page.name);
   return (
     <>
-      <Link href={`/${workspaceSlug}/projects/${projectId}/pages/${page.id}`} onClick={onNavigate}>
-        <SidebarNavItem isActive={isActive}>
-          <div className="flex w-full items-center justify-between gap-1.5 py-[1px]">
-            <div className="flex min-w-0 items-center gap-1.5">
-              {page.logo_props?.in_use ? (
-                <Logo logo={page.logo_props} size={16} type="lucide" />
-              ) : (
-                <PagesOutline className="size-4 flex-shrink-0 stroke-[1.5]" />
-              )}
-              <span className="truncate text-11 font-medium">{pageName}</span>
+      <div ref={itemRef}>
+        <Link href={`/${workspaceSlug}/projects/${projectId}/pages/${page.id}`} onClick={onNavigate} draggable={false}>
+          <SidebarNavItem isActive={isActive} className={cn({ "ring-accent-primary ring-1": isDropTarget })}>
+            <div className="flex w-full items-center justify-between gap-1.5 py-[1px]">
+              <div className="flex min-w-0 items-center gap-1.5">
+                {page.logo_props?.in_use ? (
+                  <Logo logo={page.logo_props} size={16} type="lucide" />
+                ) : (
+                  <PagesOutline className="size-4 flex-shrink-0 stroke-[1.5]" />
+                )}
+                <span className="truncate text-11 font-medium">{pageName}</span>
+              </div>
+              <button
+                type="button"
+                className="grid size-4 flex-shrink-0 place-items-center rounded-sm text-tertiary hover:bg-layer-1"
+                aria-label={isOpen ? `Hide subpages of ${pageName}` : `Show subpages of ${pageName}`}
+                aria-expanded={!!isOpen}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsOpen(!isOpen);
+                }}
+              >
+                <ChevronRightOutline className={cn("size-3.5 transition-transform", { "rotate-90": isOpen })} />
+              </button>
             </div>
-            <button
-              type="button"
-              className="grid size-4 flex-shrink-0 place-items-center rounded-sm text-tertiary hover:bg-layer-1"
-              aria-label={isOpen ? `Hide subpages of ${pageName}` : `Show subpages of ${pageName}`}
-              aria-expanded={!!isOpen}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsOpen(!isOpen);
-              }}
-            >
-              <ChevronRightOutline className={cn("size-3.5 transition-transform", { "rotate-90": isOpen })} />
-            </button>
-          </div>
-        </SidebarNavItem>
-      </Link>
+          </SidebarNavItem>
+        </Link>
+      </div>
       {isOpen && (
         <ProjectPagesTree
           workspaceSlug={workspaceSlug}
