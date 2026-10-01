@@ -506,3 +506,35 @@ span[data-name][data-type="emoji"] img {
   user-select: none;
   -webkit-user-select: none;
 }
+
+/* column blocks: side by side on wide screens, stacked on narrow ones */
+.ProseMirror .editor-column-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.ProseMirror .editor-column-list[data-columns="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ProseMirror .editor-column {
+  min-width: 0;
+}
+
+/* an empty column shows a hint unless the cursor is in it (the editor placeholder covers that case) */
+.ProseMirror .editor-column > p:only-child:not(.is-empty):has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: "Empty column";
+  float: left;
+  color: var(--color-placeholder);
+  pointer-events: none;
+  height: 0;
+}
+
+@media screen and (max-width: 640px) {
+  .ProseMirror .editor-column-list,
+  .ProseMirror .editor-column-list[data-columns="3"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

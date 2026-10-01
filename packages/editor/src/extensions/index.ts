@@ -5,6 +5,8 @@
  */
 
 export * from "./callout";
+export * from "./columns";
+export * from "./table-of-contents";
 export * from "./code";
 export * from "./code-inline";
 export * from "./custom-link";

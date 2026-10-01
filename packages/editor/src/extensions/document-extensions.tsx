@@ -7,6 +7,10 @@
 import type { HocuspocusProvider } from "@hocuspocus/provider";
 import type { AnyExtension } from "@tiptap/core";
 import { SlashCommands } from "@/extensions";
+// local imports
+import { ColumnExtension, ColumnListExtension } from "./columns";
+import { documentEditorSlashCommandOptions } from "./document-slash-command-options";
+import { TableOfContentsExtension } from "./table-of-contents";
 // types
 import type { IEditorProps, TExtensions, TUserDetails } from "@/types";
 
@@ -31,9 +35,16 @@ const extensionRegistry: TDocumentEditorAdditionalExtensionsRegistry[] = [
       SlashCommands({
         disabledExtensions,
         flaggedExtensions,
-        additionalOptions: extendedEditorProps.slashCommandAdditionalOptions,
+        additionalOptions: [
+          ...documentEditorSlashCommandOptions(),
+          ...(extendedEditorProps.slashCommandAdditionalOptions ?? []),
+        ],
       }),
   },
+  // layout blocks that only the document (page) editor's schema has
+  { isEnabled: () => true, getExtension: () => ColumnListExtension },
+  { isEnabled: () => true, getExtension: () => ColumnExtension },
+  { isEnabled: () => true, getExtension: () => TableOfContentsExtension },
 ];
 
 export function DocumentEditorAdditionalExtensions(props: TDocumentEditorAdditionalExtensionsProps) {
