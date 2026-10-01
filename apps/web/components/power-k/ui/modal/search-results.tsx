@@ -50,6 +50,11 @@ export const PowerKModalSearchResults = observer(function PowerKModalSearchResul
                 value = `${value}-${item.sequence_id}`;
               }
 
+              // a page found by its body text must survive the palette's own text filter
+              if ("snippet" in item && item.snippet) {
+                value = `${value}-${item.snippet}`;
+              }
+
               return (
                 <PowerKModalCommandItem
                   key={item.id}

@@ -17,6 +17,7 @@ import { filterPagesByPageType, getPageName, orderPages, shouldFilterPage } from
 // plane web store
 // services
 import { ProjectPageService } from "@/services/page";
+import { WorkspaceService } from "@/services/workspace.service";
 // store
 import type { CoreRootStore } from "../root.store";
 import type { TProjectPage } from "./project-page";
@@ -38,6 +39,7 @@ export interface IProjectPageStore {
   loader: TLoader;
   data: Record<string, TProjectPage>; // pageId => Page
   error: TError | undefined;
+  contentSearchPageIds: Set<string> | undefined;
   filters: TPageFilters;
   // computed
   isAnyPageAvailable: boolean;
@@ -71,6 +73,8 @@ export class ProjectPageStore implements IProjectPageStore {
   loader: TLoader = "init-loader";
   data: Record<string, TProjectPage> = {}; // pageId => Page
   error: TError | undefined = undefined;
+  // pages whose body matches the search query, fetched from the server since the store only has names
+  contentSearchPageIds: Set<string> | undefined = undefined;
   filters: TPageFilters = {
     searchQuery: "",
     sortKey: "updated_at",
@@ -78,6 +82,7 @@ export class ProjectPageStore implements IProjectPageStore {
   };
   // service
   service: ProjectPageService;
+  workspaceService: WorkspaceService;
   rootStore: CoreRootStore;
 
   constructor(private store: CoreRootStore) {
@@ -86,6 +91,7 @@ export class ProjectPageStore implements IProjectPageStore {
       loader: observable.ref,
       data: observable,
       error: observable,
+      contentSearchPageIds: observable.ref,
       filters: observable,
       // computed
       isAnyPageAvailable: computed,
@@ -103,6 +109,7 @@ export class ProjectPageStore implements IProjectPageStore {
     this.rootStore = store;
     // service
     this.service = new ProjectPageService();
+    this.workspaceService = new WorkspaceService();
     // initialize display filters of the current project
     reaction(
       () => this.store.router.projectId,
@@ -111,7 +118,40 @@ export class ProjectPageStore implements IProjectPageStore {
         this.filters.searchQuery = "";
       }
     );
+    // search page bodies on the server once typing pauses
+    reaction(
+      () => [this.store.router.workspaceSlug, this.store.router.projectId, this.filters.searchQuery.trim()] as const,
+      ([workspaceSlug, projectId, query]) => {
+        void this.fetchContentSearchPageIds(workspaceSlug, projectId, query);
+      },
+      { delay: 300 }
+    );
   }
+
+  private fetchContentSearchPageIds = async (
+    workspaceSlug: string | undefined,
+    projectId: string | undefined,
+    query: string
+  ) => {
+    if (!workspaceSlug || !projectId || !query) {
+      runInAction(() => (this.contentSearchPageIds = undefined));
+      return;
+    }
+    try {
+      const response = await this.workspaceService.searchWorkspace(workspaceSlug, {
+        project_id: projectId,
+        search: query,
+        workspace_search: false,
+        entities: "page",
+      });
+      // ignore answers to a query the user has since changed
+      if (this.filters.searchQuery.trim() !== query || this.store.router.projectId !== projectId) return;
+      runInAction(() => (this.contentSearchPageIds = new Set(response?.results?.page?.map((page) => page.id) ?? [])));
+    } catch (error) {
+      console.error("Failed to search page content", error);
+      runInAction(() => (this.contentSearchPageIds = undefined));
+    }
+  };
 
   /**
    * @description check if any page is available
@@ -172,7 +212,8 @@ export class ProjectPageStore implements IProjectPageStore {
     let filteredPages = pagesByType.filter(
       (p) =>
         p.project_ids?.includes(projectId) &&
-        getPageName(p.name).toLowerCase().includes(this.filters.searchQuery.toLowerCase()) &&
+        (getPageName(p.name).toLowerCase().includes(this.filters.searchQuery.toLowerCase()) ||
+          (!!p.id && !!this.contentSearchPageIds?.has(p.id))) &&
         shouldFilterPage(p, this.filters.filters)
     );
     filteredPages = orderPages(filteredPages, this.filters.sortKey, this.filters.sortBy);
