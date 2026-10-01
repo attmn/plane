@@ -61,7 +61,7 @@ export interface IProjectPageStore {
     pageId: string,
     options?: { trackVisit?: boolean }
   ) => Promise<TPage | undefined>;
-  createPage: (pageData: Partial<TPage>) => Promise<TPage | undefined>;
+  createPage: (pageData: Partial<TPage>, projectId?: string) => Promise<TPage | undefined>;
   removePage: (params: { pageId: string; shouldSync?: boolean }) => Promise<void>;
   movePage: (workspaceSlug: string, projectId: string, pageId: string, newProjectId: string) => Promise<void>;
 }
@@ -209,11 +209,14 @@ export class ProjectPageStore implements IProjectPageStore {
     try {
       if (!workspaceSlug || !projectId) return undefined;
 
+      // the sidebar page tree fetches other projects' pages; only the routed project drives the loader
+      const isRoutedProject = projectId === this.store.router.projectId;
       const currentPageIds = pageType ? this.getCurrentProjectPageIdsByTab(pageType) : undefined;
-      runInAction(() => {
-        this.loader = currentPageIds && currentPageIds.length > 0 ? `mutation-loader` : `init-loader`;
-        this.error = undefined;
-      });
+      if (isRoutedProject)
+        runInAction(() => {
+          this.loader = currentPageIds && currentPageIds.length > 0 ? `mutation-loader` : `init-loader`;
+          this.error = undefined;
+        });
 
       const pages = await this.service.fetchAll(workspaceSlug, projectId);
       runInAction(() => {
@@ -231,11 +234,12 @@ export class ProjectPageStore implements IProjectPageStore {
             }
           }
         }
-        this.loader = undefined;
+        if (isRoutedProject) this.loader = undefined;
       });
 
       return pages;
     } catch (error) {
+      if (projectId !== this.store.router.projectId) throw error;
       runInAction(() => {
         this.loader = undefined;
         this.error = {
@@ -294,9 +298,10 @@ export class ProjectPageStore implements IProjectPageStore {
    * @description create a page
    * @param {Partial<TPage>} pageData
    */
-  createPage = async (pageData: Partial<TPage>) => {
+  createPage = async (pageData: Partial<TPage>, projectIdOverride?: string) => {
     try {
-      const { workspaceSlug, projectId } = this.store.router;
+      const { workspaceSlug } = this.store.router;
+      const projectId = projectIdOverride ?? this.store.router.projectId;
       if (!workspaceSlug || !projectId) return undefined;
 
       runInAction(() => {

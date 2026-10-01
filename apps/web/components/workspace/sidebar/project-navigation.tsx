@@ -4,13 +4,14 @@
  * See the LICENSE file for details.
  */
 
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { observer } from "mobx-react";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { EUserPermissionsLevel, EUserPermissions } from "@plane/constants";
 import { useTranslation } from "@plane/i18n";
 import {
+  ChevronRightOutline,
   CyclesOutline,
   IntakeOutline,
   ModuleOutline,
@@ -19,14 +20,17 @@ import {
   WorkItemsOutline,
 } from "@makeplane/propel/icons";
 import type { EUserProjectRoles } from "@plane/types";
+import { cn } from "@plane/utils";
 // plane ui
 // components
+import { ProjectPagesTree } from "@/components/pages/sidebar/project-pages-tree";
 import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
+import useLocalStorage from "@/hooks/use-local-storage";
 
 export type TNavigationItem = {
   name: string;
@@ -64,6 +68,16 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
     : undefined;
   const workItem = workItemId ? getIssueById(workItemId) : undefined;
   const project = getPartialProjectById(projectId);
+  const pagesHref = `/${workspaceSlug}/projects/${projectId}/pages`;
+  const isOnProjectPages = pathname.includes(pagesHref);
+  const { storedValue: isPagesTreeOpen, setValue: setIsPagesTreeOpen } = useLocalStorage<boolean>(
+    `sidebar_page_tree_open_${projectId}`,
+    false
+  );
+  useEffect(() => {
+    if (isOnProjectPages && !isPagesTreeOpen) setIsPagesTreeOpen(true);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- open the tree when the user enters this project's pages
+  }, [isOnProjectPages]);
   // handlers
   const handleProjectClick = () => {
     if (window.innerWidth < 768) {
@@ -189,8 +203,9 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
         if (!hasAccess) return null;
 
         const shouldShowCount = item.key === "intake" && (project.intake_count ?? 0) > 0;
+        const isPagesItem = item.key === "pages";
 
-        return (
+        const navLink = (
           <Link key={item.key} href={item.href} onClick={handleProjectClick}>
             <SidebarNavItem isActive={!!isActive(item)}>
               <div className="flex w-full items-center justify-between gap-1.5 py-[1px]">
@@ -201,9 +216,45 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
                   <span className="text-11 font-medium">{t(item.i18n_key)}</span>
                 </div>
                 {shouldShowCount && <span className="text-11 font-medium text-tertiary">{project.intake_count}</span>}
+                {isPagesItem && (
+                  <button
+                    type="button"
+                    className="grid size-4 flex-shrink-0 place-items-center rounded-sm text-tertiary hover:bg-layer-1"
+                    aria-label={isPagesTreeOpen ? "Hide page tree" : "Show page tree"}
+                    aria-expanded={!!isPagesTreeOpen}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsPagesTreeOpen(!isPagesTreeOpen);
+                    }}
+                  >
+                    <ChevronRightOutline
+                      className={cn("size-3.5 transition-transform", { "rotate-90": isPagesTreeOpen })}
+                    />
+                  </button>
+                )}
               </div>
             </SidebarNavItem>
           </Link>
+        );
+
+        if (!isPagesItem || !isPagesTreeOpen) return navLink;
+
+        return (
+          <React.Fragment key={item.key}>
+            {navLink}
+            <ProjectPagesTree
+              workspaceSlug={workspaceSlug}
+              projectId={projectId}
+              canCreatePages={allowPermissions(
+                [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+                EUserPermissionsLevel.PROJECT,
+                workspaceSlug,
+                project.id
+              )}
+              onNavigate={handleProjectClick}
+            />
+          </React.Fragment>
         );
       })}
     </>
