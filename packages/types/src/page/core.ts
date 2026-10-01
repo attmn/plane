@@ -74,6 +74,24 @@ export type TPageFilters = {
 
 export type TPageEmbedType = "mention" | "issue";
 
+// a comment on a page; a comment without a parent starts a thread, inline threads carry anchor_id
+export type TPageComment = {
+  id: string;
+  page: string;
+  project: string;
+  workspace: string;
+  parent: string | null;
+  anchor_id: string | null;
+  comment_html: string;
+  comment_stripped: string;
+  actor: string;
+  edited_at: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type TPageVersion = {
   created_at: string;
   created_by: string;

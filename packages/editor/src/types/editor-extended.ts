@@ -18,7 +18,15 @@ export type TTurnBlockIntoPageResult = {
   title: string;
 };
 
+export type TCreateCommentPayload = {
+  // the selected text the comment is about
+  quote: string;
+  // anchors the saved thread to the selection; false when that text has since changed
+  applyAnchor: (anchorId: string) => boolean;
+};
+
 export type IEditorPropsExtended = {
+  onCreateComment?: (payload: TCreateCommentPayload) => void;
   slashCommandAdditionalOptions?: TSlashCommandAdditionalOption[];
   onTurnBlockIntoPage?: (payload: TTurnBlockIntoPagePayload) => Promise<TTurnBlockIntoPageResult | undefined>;
 };

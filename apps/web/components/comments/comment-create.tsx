@@ -26,6 +26,8 @@ type TCommentCreate = {
   showToolbarInitially?: boolean;
   projectId?: string;
   onSubmitCallback?: (elementId: string) => void;
+  // tells composers for the same entity apart (several can be open at once)
+  composerId?: string;
 };
 
 // services
@@ -39,6 +41,7 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
     showToolbarInitially = false,
     projectId,
     onSubmitCallback,
+    composerId,
   } = props;
   // states
   const [uploadedAssetIds, setUploadedAssetIds] = useState<string[]>([]);
@@ -117,7 +120,7 @@ export const CommentCreate = observer(function CommentCreate(props: TCommentCrea
               <LiteTextEditor
                 editable
                 workspaceId={workspaceId}
-                id={"add_comment_" + entityId}
+                id={composerId ?? "add_comment_" + entityId}
                 value={"<p></p>"}
                 workspaceSlug={workspaceSlug}
                 projectId={projectId}

@@ -12,6 +12,7 @@ import TaskList from "@tiptap/extension-task-list";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { Underline } from "@tiptap/extension-underline";
 import { Markdown } from "tiptap-markdown";
+import { CommentMarkExtension } from "./comment-mark";
 // extensions
 import {
   CustomCalloutExtension,
@@ -119,6 +120,7 @@ export const CoreEditorExtensions = (args: TArguments): Extensions => {
     CustomPlaceholderExtension({ placeholder, showPlaceholderOnEmpty }),
     CharacterCount,
     CustomColorExtension,
+    CommentMarkExtension,
     CustomTextAlignExtension,
     CustomCalloutExtension,
     UtilityExtension({

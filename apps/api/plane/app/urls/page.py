@@ -11,6 +11,9 @@ from plane.app.views import (
     PagesDescriptionViewSet,
     PageVersionEndpoint,
     PageDuplicateEndpoint,
+    PageCommentEndpoint,
+    PageCommentDetailEndpoint,
+    PageCommentResolveEndpoint,
 )
 
 urlpatterns = [
@@ -72,5 +75,20 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/pages/<uuid:page_id>/duplicate/",
         PageDuplicateEndpoint.as_view(),
         name="page-duplicate",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/pages/<uuid:page_id>/comments/",
+        PageCommentEndpoint.as_view(),
+        name="page-comments",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/pages/<uuid:page_id>/comments/<uuid:comment_id>/",
+        PageCommentDetailEndpoint.as_view(),
+        name="page-comment",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/pages/<uuid:page_id>/comments/<uuid:comment_id>/resolve/",
+        PageCommentResolveEndpoint.as_view(),
+        name="page-comment-resolve",
     ),
 ]

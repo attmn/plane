@@ -14,6 +14,7 @@ import { CoreEditorAdditionalExtensionsWithoutProps } from "@/extensions/core/wi
 import { CustomCalloutExtensionConfig } from "./callout/extension-config";
 import { CustomCodeBlockExtensionWithoutProps } from "./code/without-props";
 import { CustomCodeInlineExtension } from "./code-inline";
+import { CommentMarkExtension } from "./comment-mark";
 import { CustomColorExtension } from "./custom-color";
 import { CustomImageExtensionConfig } from "./custom-image/extension-config";
 import { CustomLinkExtension } from "./custom-link";
@@ -62,6 +63,7 @@ export const CoreEditorExtensionsWithoutProps = [
   CustomTextAlignExtension,
   CustomCalloutExtensionConfig,
   CustomColorExtension,
+  CommentMarkExtension,
   ...CoreEditorAdditionalExtensionsWithoutProps,
 ];
 

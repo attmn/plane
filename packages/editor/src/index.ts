@@ -20,6 +20,7 @@ export * from "@/helpers/common";
 export * from "@/helpers/yjs-utils";
 
 export { CORE_EXTENSIONS } from "@/constants/extension";
+export { COMMENT_MARK_ID_ATTRIBUTE } from "@/extensions/comment-mark";
 export { ADDITIONAL_EXTENSIONS } from "@/constants/extensions";
 
 // types
