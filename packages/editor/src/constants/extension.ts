@@ -13,6 +13,8 @@ export enum CORE_EXTENSIONS {
   CODE_BLOCK = "codeBlock",
   CODE_INLINE = "code",
   CUSTOM_COLOR = "customColor",
+  COLUMN = "column",
+  COLUMN_LIST = "columnList",
   CUSTOM_IMAGE = "imageComponent",
   CUSTOM_LINK = "link",
   DOCUMENT = "doc",
@@ -36,6 +38,7 @@ export enum CORE_EXTENSIONS {
   SLASH_COMMANDS = "slash-command",
   STRIKETHROUGH = "strike",
   TABLE = "table",
+  TABLE_OF_CONTENTS = "tableOfContents",
   TABLE_CELL = "tableCell",
   TABLE_HEADER = "tableHeader",
   TABLE_ROW = "tableRow",
@@ -74,4 +77,8 @@ export const BLOCK_NODE_TYPES = [
   CORE_EXTENSIONS.CUSTOM_IMAGE,
   CORE_EXTENSIONS.CALLOUT,
   CORE_EXTENSIONS.WORK_ITEM_EMBED,
+
+  // Layout nodes
+  CORE_EXTENSIONS.COLUMN_LIST,
+  CORE_EXTENSIONS.TABLE_OF_CONTENTS,
 ];

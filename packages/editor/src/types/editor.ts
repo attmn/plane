@@ -67,6 +67,9 @@ export type TEditorCommands =
   | "emoji"
   | "external-embed"
   | "page"
+  | "columns-2"
+  | "columns-3"
+  | "table-of-contents"
   | TExtendedEditorCommands;
 
 export type TCommandExtraProps = {
