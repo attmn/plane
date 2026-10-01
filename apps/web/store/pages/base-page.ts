@@ -40,6 +40,7 @@ export type TBasePage = TPage & {
   updatePageLogo: (value: ChangeHandlerPayload) => Promise<void>;
   toggleSidebarPin: () => Promise<void>;
   updateTreePosition: (position: { parent?: string | null; sort_order: number }) => Promise<void>;
+  toggleTemplate: () => Promise<void>;
   addToFavorites: () => Promise<void>;
   removePageFromFavorites: () => Promise<void>;
   duplicate: () => Promise<TPage | undefined>;
@@ -196,6 +197,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       updatePageLogo: action,
       toggleSidebarPin: action,
       updateTreePosition: action,
+      toggleTemplate: action,
       addToFavorites: action,
       removePageFromFavorites: action,
       duplicate: action,
@@ -502,8 +504,19 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
    * @description show or hide the page next to "Pages" in the project sidebar, for everyone in the project
    */
   toggleSidebarPin = async () => {
+    await this.updateViewProps({ sidebar_pinned: !this.view_props?.sidebar_pinned });
+  };
+
+  /**
+   * @description offer or stop offering the page as a template when creating pages in the project
+   */
+  toggleTemplate = async () => {
+    await this.updateViewProps({ is_template: !this.view_props?.is_template });
+  };
+
+  private updateViewProps = async (changes: TPageViewProps) => {
     const originalViewProps = this.view_props;
-    const viewProps: TPageViewProps = { ...originalViewProps, sidebar_pinned: !originalViewProps?.sidebar_pinned };
+    const viewProps: TPageViewProps = { ...originalViewProps, ...changes };
     runInAction(() => {
       this.view_props = viewProps;
     });

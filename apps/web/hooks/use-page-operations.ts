@@ -26,6 +26,7 @@ export type TPageOperations = {
   duplicate: () => void;
   toggleArchive: () => void;
   toggleSidebarPin: () => void;
+  toggleTemplate: () => void;
 };
 
 type Props = {
@@ -49,9 +50,11 @@ export const usePageOperations = (
     getRedirectionLink,
     removePageFromFavorites,
     toggleSidebarPin,
+    toggleTemplate,
     view_props,
   } = page;
   const isSidebarPinned = !!view_props?.sidebar_pinned;
+  const isTemplate = !!view_props?.is_template;
   // collaborative actions
   const { executeCollaborativeAction } = useCollaborativePageActions(props);
   // local storage
@@ -140,6 +143,26 @@ export const usePageOperations = (
               message: "Page could not be archived. Please try again later.",
             });
           }
+        }
+      },
+      toggleTemplate: async () => {
+        try {
+          await toggleTemplate();
+          setToast({
+            type: "success",
+            title: "Success!",
+            message: isTemplate
+              ? "Page is no longer offered as a template."
+              : "Page is now offered as a template when creating pages in this project.",
+          });
+        } catch (_error) {
+          setToast({
+            type: "error",
+            title: "Error!",
+            message: isTemplate
+              ? "Page could not stop being a template. Please try again later."
+              : "Page could not be made a template. Please try again later.",
+          });
         }
       },
       toggleSidebarPin: async () => {
@@ -239,9 +262,11 @@ export const usePageOperations = (
     is_locked,
     isFavoriteMenuOpen,
     isSidebarPinned,
+    isTemplate,
     removePageFromFavorites,
     toggleFavoriteMenu,
     toggleSidebarPin,
+    toggleTemplate,
   ]);
   return {
     pageOperations,

@@ -5,3 +5,4 @@
  */
 
 export * from "./actions";
+export * from "./new-page-menu";

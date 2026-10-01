@@ -16,6 +16,7 @@ import { useAppRouter } from "@/hooks/use-app-router";
 import type { EPageStoreType } from "@/hooks/store";
 import { usePageStore } from "@/hooks/store";
 // local imports
+import { PageTemplateSelect } from "../dropdowns/new-page-menu";
 import { PageForm } from "./page-form";
 
 type Props = {
@@ -51,7 +52,8 @@ export function CreatePageModal(props: Props) {
   // router
   const router = useAppRouter();
   // store hooks
-  const { createPage } = usePageStore(storeType);
+  const { createPage, createPageFromTemplate } = usePageStore(storeType);
+  const [templateId, setTemplateId] = useState<string | null>(null);
   const handlePageFormData = <T extends keyof TPage>(key: T, value: TPage[T]) =>
     setPageFormData((prev) => ({ ...prev, [key]: value }));
 
@@ -62,6 +64,7 @@ export function CreatePageModal(props: Props) {
 
   const handleStateClear = () => {
     setPageFormData({ id: undefined, name: "", access: pageAccess });
+    setTemplateId(null);
     handleModalClose();
   };
 
@@ -69,7 +72,18 @@ export function CreatePageModal(props: Props) {
     if (!workspaceSlug || !projectId) return;
 
     try {
-      const pageData = await createPage({ ...pageFormData, parent: parentPageId });
+      const pageData = templateId
+        ? await createPageFromTemplate(
+            templateId,
+            {
+              name: pageFormData.name,
+              parent: parentPageId ?? null,
+              access: pageFormData.access,
+              logo_props: pageFormData.logo_props,
+            },
+            projectId
+          )
+        : await createPage({ ...pageFormData, parent: parentPageId });
       if (pageData) {
         onCreated?.(pageData);
         handleStateClear();
@@ -93,6 +107,7 @@ export function CreatePageModal(props: Props) {
           handleFormData={handlePageFormData}
           handleModalClose={handleStateClear}
           handleFormSubmit={handleFormSubmit}
+          extraField={<PageTemplateSelect projectId={projectId} value={templateId} onChange={setTemplateId} />}
         />
       </DialogContent>
     </Dialog>

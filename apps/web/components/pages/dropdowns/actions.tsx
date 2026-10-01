@@ -20,6 +20,7 @@ import {
   NewTabOutline,
   PinOutline,
   RestoreOutline,
+  TemplatesOutline,
   UnlockedOutline,
   UnpinOutline,
 } from "@makeplane/propel/icons";
@@ -56,7 +57,8 @@ export type TPageActions =
   | "version-history"
   | "export"
   | "move"
-  | "toggle-sidebar-pin";
+  | "toggle-sidebar-pin"
+  | "toggle-template";
 
 type Props = {
   extraOptions?: (TContextMenuItem & { key: TPageActions })[];
@@ -98,6 +100,7 @@ export const PageActions = observer(function PageActions(props: Props) {
     view_props,
   } = page;
   const isSidebarPinned = !!view_props?.sidebar_pinned;
+  const isTemplate = !!view_props?.is_template;
   // menu items
   const MENU_ITEMS = useMemo(
     function MENU_ITEMS() {
@@ -127,6 +130,15 @@ export const PageActions = observer(function PageActions(props: Props) {
           },
           title: isSidebarPinned ? "Remove from sidebar" : "Show in sidebar",
           icon: isSidebarPinned ? UnpinOutline : PinOutline,
+          shouldRender: canCurrentUserEditPage && !archived_at,
+        },
+        {
+          key: "toggle-template",
+          action: () => {
+            pageOperations.toggleTemplate();
+          },
+          title: isTemplate ? "Stop using as template" : "Use as template",
+          icon: TemplatesOutline,
           shouldRender: canCurrentUserEditPage && !archived_at,
         },
         {
@@ -196,6 +208,7 @@ export const PageActions = observer(function PageActions(props: Props) {
       canCurrentUserMovePage,
       canCurrentUserEditPage,
       isSidebarPinned,
+      isTemplate,
       isMovePageEnabled,
       pageOperations,
     ]

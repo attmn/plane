@@ -9,7 +9,7 @@ import { makeObservable, observable, runInAction, action, reaction, computed } f
 import { computedFn } from "mobx-utils";
 // types
 import { EUserPermissions } from "@plane/constants";
-import type { TPage, TPageFilters, TPageNavigationTabs } from "@plane/types";
+import type { TPage, TPageFilters, TPageFromTemplatePayload, TPageNavigationTabs } from "@plane/types";
 import { EUserProjectRoles } from "@plane/types";
 // helpers
 import { filterPagesByPageType, getPageName, orderPages, shouldFilterPage } from "@plane/utils";
@@ -49,6 +49,7 @@ export interface IProjectPageStore {
   getCurrentProjectPageIds: (projectId: string) => string[];
   getCurrentProjectFilteredPageIdsByTab: (pageType: TPageNavigationTabs) => string[] | undefined;
   getPageById: (pageId: string) => TProjectPage | undefined;
+  getProjectTemplatePages: (projectId: string) => TProjectPage[];
   updateFilters: <T extends keyof TPageFilters>(filterKey: T, filterValue: TPageFilters[T]) => void;
   clearAllFilters: () => void;
   // actions
@@ -64,6 +65,11 @@ export interface IProjectPageStore {
     options?: { trackVisit?: boolean }
   ) => Promise<TPage | undefined>;
   createPage: (pageData: Partial<TPage>, projectId?: string) => Promise<TPage | undefined>;
+  createPageFromTemplate: (
+    templateId: string,
+    data: TPageFromTemplatePayload,
+    projectId?: string
+  ) => Promise<TPage | undefined>;
   removePage: (params: { pageId: string; shouldSync?: boolean }) => Promise<void>;
   movePage: (workspaceSlug: string, projectId: string, pageId: string, newProjectId: string) => Promise<void>;
 }
@@ -103,6 +109,7 @@ export class ProjectPageStore implements IProjectPageStore {
       fetchPagesList: action,
       fetchPageDetails: action,
       createPage: action,
+      createPageFromTemplate: action,
       removePage: action,
       movePage: action,
     });
@@ -228,6 +235,16 @@ export class ProjectPageStore implements IProjectPageStore {
    * @param {string} pageId
    */
   getPageById = computedFn((pageId: string) => this.data?.[pageId] || undefined);
+
+  /**
+   * @description the project's pages marked as templates, sorted by name
+   * @param {string} projectId
+   */
+  getProjectTemplatePages = computedFn((projectId: string) =>
+    Object.values(this.data || {})
+      .filter((page) => page.project_ids?.includes(projectId) && !!page.view_props?.is_template && !page.archived_at)
+      .sort((a, b) => getPageName(a.name).localeCompare(getPageName(b.name), undefined, { numeric: true }))
+  );
 
   updateFilters = <T extends keyof TPageFilters>(filterKey: T, filterValue: TPageFilters[T]) => {
     runInAction(() => {
@@ -367,6 +384,23 @@ export class ProjectPageStore implements IProjectPageStore {
       });
       throw error;
     }
+  };
+
+  /**
+   * @description create a page from a template, copying its content and icon
+   * @param {string} templateId
+   * @param {TPageFromTemplatePayload} data
+   */
+  createPageFromTemplate = async (templateId: string, data: TPageFromTemplatePayload, projectIdOverride?: string) => {
+    const { workspaceSlug } = this.store.router;
+    const projectId = projectIdOverride ?? this.store.router.projectId;
+    if (!workspaceSlug || !projectId) return undefined;
+
+    const page = await this.service.createFromTemplate(workspaceSlug, projectId, templateId, data);
+    runInAction(() => {
+      if (page?.id) set(this.data, [page.id], new ProjectPage(this.store, page));
+    });
+    return page;
   };
 
   /**

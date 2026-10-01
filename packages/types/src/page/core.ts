@@ -39,6 +39,16 @@ export type TPageViewProps = {
   full_width?: boolean;
   // shows the page as its own item next to "Pages" in the project sidebar
   sidebar_pinned?: boolean;
+  // offered as a starting point when creating a page in the project
+  is_template?: boolean;
+};
+
+export type TPageFromTemplatePayload = {
+  name?: string;
+  // replaces the template's icon when set
+  logo_props?: TLogoProps;
+  parent?: string | null;
+  access?: EPageAccess;
 };
 
 // page filters

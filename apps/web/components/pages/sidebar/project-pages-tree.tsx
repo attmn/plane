@@ -21,6 +21,8 @@ import { setToast } from "@plane/blocks/toast";
 import { EPageAccess } from "@plane/types";
 import { cn, getPageName } from "@plane/utils";
 // components
+import { NewPageMenu } from "@/components/pages/dropdowns";
+import { PageTemplateBadge } from "@/components/pages/list/template-badge";
 import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
 // hooks
 import { EPageStoreType, usePageStore } from "@/hooks/store";
@@ -172,7 +174,9 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
   const { pageId: routePageId } = useParams();
   const router = useAppRouter();
   // store hooks
-  const { getCurrentProjectPageIds, getPageById, createPage } = usePageStore(EPageStoreType.PROJECT);
+  const { getCurrentProjectPageIds, getPageById, createPage, createPageFromTemplate } = usePageStore(
+    EPageStoreType.PROJECT
+  );
   // expanded pages, remembered per project
   const { storedValue: storedExpandedIds, setValue: setStoredExpandedIds } = useLocalStorage<string[]>(
     `sidebar_page_tree_expanded_${projectId}`,
@@ -239,15 +243,15 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
     void movePage(pageId, parentId, instruction === "reorder-above" ? { beforeId: target.id } : { afterId: target.id });
   };
 
-  const handleCreate = async (parentPage: TProjectPage | null) => {
+  const handleCreate = async (parentPage: TProjectPage | null, templateId: string | null) => {
     const parent = parentPage ?? (rootPageId ? (getPageById(rootPageId) ?? null) : null);
     if (creatingParentId !== undefined) return;
     setCreatingParentId(parent?.id ?? null);
     try {
-      const page = await createPage(
-        { name: "", parent: parent?.id ?? null, access: parent?.access ?? EPageAccess.PUBLIC },
-        projectId
-      );
+      const pageData = { parent: parent?.id ?? null, access: parent?.access ?? EPageAccess.PUBLIC };
+      const page = templateId
+        ? await createPageFromTemplate(templateId, pageData, projectId)
+        : await createPage({ ...pageData, name: "" }, projectId);
       if (!page?.id) throw new Error("The page was not created.");
       if (parent?.id && !expandedIds.has(parent.id)) setStoredExpandedIds([...expandedIds, parent.id]);
       onNavigate?.();
@@ -291,22 +295,27 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
           canCreatePages={canCreatePages}
           isCreating={creatingParentId !== undefined}
           onToggle={toggle}
-          onCreate={(parent) => void handleCreate(parent)}
+          onCreate={(parent, templateId) => void handleCreate(parent, templateId)}
           onDrop={handleDrop}
           onNavigate={onNavigate}
         />
       ))}
       {canCreatePages && (
-        <button
-          type="button"
-          className="flex items-center gap-1 rounded-md px-2 py-0.5 text-11 font-medium text-tertiary hover:bg-layer-transparent-hover"
-          onClick={() => void handleCreate(null)}
-          disabled={creatingParentId !== undefined}
-        >
-          <span className="size-4 flex-shrink-0" aria-hidden="true" />
-          <AddOutline className="size-3.5 flex-shrink-0" />
-          New page
-        </button>
+        <NewPageMenu
+          projectId={projectId}
+          onSelect={(templateId) => void handleCreate(null, templateId)}
+          trigger={
+            <button
+              type="button"
+              className="flex items-center gap-1 rounded-md px-2 py-0.5 text-11 font-medium text-tertiary hover:bg-layer-transparent-hover"
+              disabled={creatingParentId !== undefined}
+            >
+              <span className="size-4 flex-shrink-0" aria-hidden="true" />
+              <AddOutline className="size-3.5 flex-shrink-0" />
+              New page
+            </button>
+          }
+        />
       )}
     </div>
   );
@@ -323,7 +332,7 @@ type TPageTreeRowProps = {
   canCreatePages: boolean;
   isCreating: boolean;
   onToggle: (pageId: string) => void;
-  onCreate: (parent: TProjectPage) => void;
+  onCreate: (parent: TProjectPage, templateId: string | null) => void;
   onDrop: (pageId: string, target: TProjectPage, instruction: TDropInstruction) => void;
   onNavigate?: () => void;
 };
@@ -441,20 +450,27 @@ const PageTreeRow = observer(function PageTreeRow(props: TPageTreeRowProps) {
               <PagesOutline className="size-3.5 flex-shrink-0 text-tertiary" />
             )}
             <span className="truncate text-11 font-medium">{pageName}</span>
+            {page.view_props?.is_template && <PageTemplateBadge />}
           </div>
           {canCreatePages && (
-            <span className="hidden flex-shrink-0 group-hover:inline-flex">
-              <IconButton
-                variant="ghost"
-                size="xs"
-                icon={<Icon icon={AddOutline} />}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onCreate(page);
-                }}
-                disabled={isCreating}
-                aria-label={`Add a page inside ${pageName}`}
+            // stays visible while its template menu is open
+            <span className="hidden flex-shrink-0 group-hover:inline-flex has-[[data-popup-open]]:inline-flex">
+              <NewPageMenu
+                projectId={projectId}
+                onSelect={(templateId) => onCreate(page, templateId)}
+                trigger={
+                  <IconButton
+                    variant="ghost"
+                    size="xs"
+                    icon={<Icon icon={AddOutline} />}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    disabled={isCreating}
+                    aria-label={`Add a page inside ${pageName}`}
+                  />
+                }
               />
             </span>
           )}

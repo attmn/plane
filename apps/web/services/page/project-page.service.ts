@@ -6,7 +6,7 @@
 
 // types
 import { API_BASE_URL } from "@plane/constants";
-import type { TDocumentPayload, TPage } from "@plane/types";
+import type { TDocumentPayload, TPage, TPageFromTemplatePayload } from "@plane/types";
 // helpers
 // services
 import { APIService } from "@/services/api.service";
@@ -176,6 +176,22 @@ export class ProjectPageService extends APIService {
 
   async duplicate(workspaceSlug: string, projectId: string, pageId: string): Promise<TPage> {
     return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/pages/${pageId}/duplicate/`)
+      .then((response) => response?.data)
+      .catch((error) => {
+        throw error?.response?.data;
+      });
+  }
+
+  async createFromTemplate(
+    workspaceSlug: string,
+    projectId: string,
+    templateId: string,
+    data: TPageFromTemplatePayload
+  ): Promise<TPage> {
+    return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/pages/${templateId}/duplicate/`, {
+      ...data,
+      from_template: true,
+    })
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;
