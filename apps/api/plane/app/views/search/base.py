@@ -43,6 +43,19 @@ from plane.db.models import (
 )
 
 
+def get_search_snippet(text, query, context=60):
+    """Returns the text around the first match of the query, collapsed to one line."""
+    text = " ".join(text.split())
+    index = text.lower().find(query.lower())
+    if index == -1:
+        return None
+    start = max(index - context, 0)
+    end = min(index + len(query) + context, len(text))
+    prefix = "…" if start > 0 else ""
+    suffix = "…" if end < len(text) else ""
+    return f"{prefix}{text[start:end].strip()}{suffix}"
+
+
 class GlobalSearchEndpoint(BaseAPIView):
     """Endpoint to search across multiple fields in the workspace and
     also show related workspace if found
@@ -162,7 +175,8 @@ class GlobalSearchEndpoint(BaseAPIView):
         )
 
     def filter_pages(self, query, slug, project_id, workspace_search):
-        fields = ["name"]
+        # page bodies are searched through their plain-text copy
+        fields = ["name", "description_stripped"]
         q = Q()
         if query:
             for field in fields:
@@ -171,6 +185,8 @@ class GlobalSearchEndpoint(BaseAPIView):
         pages = (
             Page.objects.filter(
                 q,
+                # a private page is only visible to its owner, as in the pages list
+                Q(owned_by=self.request.user) | Q(access=Page.PUBLIC_ACCESS),
                 projects__project_projectmember__member=self.request.user,
                 projects__project_projectmember__is_active=True,
                 projects__archived_at__isnull=True,
@@ -201,11 +217,16 @@ class GlobalSearchEndpoint(BaseAPIView):
 
             pages = pages.annotate(project_id=Subquery(project_subquery)).filter(project_id=project_id)
 
-        return (
+        results = list(
             pages.order_by("-created_at")
             .distinct()
-            .values("name", "id", "project_ids", "project_identifiers", "workspace__slug")
+            .values("name", "id", "project_ids", "project_identifiers", "workspace__slug", "description_stripped")
         )
+        for page in results:
+            description = page.pop("description_stripped") or ""
+            name_matches = not query or query.lower() in (page["name"] or "").lower()
+            page["snippet"] = None if name_matches else get_search_snippet(description, query)
+        return results
 
     def filter_views(self, query, slug, project_id, workspace_search):
         fields = ["name"]

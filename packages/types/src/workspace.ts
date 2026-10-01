@@ -143,6 +143,8 @@ export interface IWorkspacePageSearchResult {
   project_ids: string[];
   project__identifiers: string[];
   workspace__slug: string;
+  // the text around the match when the query matched the page body rather than its name
+  snippet?: string | null;
 }
 
 export interface IWorkspaceProjectSearchResult {

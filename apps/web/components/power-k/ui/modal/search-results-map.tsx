@@ -92,9 +92,12 @@ export const POWER_K_SEARCH_RESULTS_GROUPS_MAP: Record<TPowerKSearchResultsKeys,
   page: {
     icon: DocumentationOutline,
     itemName: (page: IWorkspacePageSearchResult) => (
-      <p>
-        <span className="text-11 text-tertiary">{page.project__identifiers?.[0]}</span> {page.name}
-      </p>
+      <div className="min-w-0">
+        <p>
+          <span className="text-11 text-tertiary">{page.project__identifiers?.[0]}</span> {page.name}
+        </p>
+        {page.snippet && <p className="truncate text-11 text-tertiary">{page.snippet}</p>}
+      </div>
     ),
     path: (page: IWorkspacePageSearchResult, projectId: string | undefined) => {
       let redirectProjectId = page?.project_ids?.[0];
