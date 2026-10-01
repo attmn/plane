@@ -24,6 +24,7 @@ import { useProject } from "@/hooks/store/use-project";
 // plane web imports
 import { CommonProjectBreadcrumbs } from "@/components/breadcrumbs/common";
 import { useProjectCrumbProps } from "@/components/breadcrumbs/use-project-crumb-props";
+import { NewPageMenu } from "@/components/pages/dropdowns";
 import { EPageStoreType, usePageStore } from "@/hooks/store";
 
 export const PagesListHeader = observer(function PagesListHeader() {
@@ -37,16 +38,16 @@ export const PagesListHeader = observer(function PagesListHeader() {
   const pageType = searchParams.get("type");
   // store hooks
   const { currentProjectDetails, loader } = useProject();
-  const { canCurrentUserCreatePage, createPage } = usePageStore(EPageStoreType.PROJECT);
+  const { canCurrentUserCreatePage, createPage, createPageFromTemplate } = usePageStore(EPageStoreType.PROJECT);
   // handle page create
-  const handleCreatePage = async () => {
+  const handleCreatePage = async (templateId: string | null) => {
     setIsCreatingPage(true);
 
     const payload: Partial<TPage> = {
       access: pageType === "private" ? EPageAccess.PRIVATE : EPageAccess.PUBLIC,
     };
 
-    await createPage(payload)
+    await (templateId ? createPageFromTemplate(templateId, { access: payload.access }) : createPage(payload))
       // oxlint-disable-next-line promise/always-return
       .then((res) => {
         const pageId = `/${workspaceSlug}/projects/${currentProjectDetails?.id}/pages/${res?.id}`;
@@ -86,13 +87,19 @@ export const PagesListHeader = observer(function PagesListHeader() {
       </Header.LeftItem>
       {canCurrentUserCreatePage && (
         <Header.RightItem>
-          <Button
-            variant="primary"
-            size="md"
-            stretch="auto"
-            label={isCreatingPage ? "Adding" : "Add page"}
-            onClick={handleCreatePage}
-            loading={isCreatingPage}
+          <NewPageMenu
+            projectId={projectId?.toString() ?? ""}
+            align="end"
+            onSelect={(templateId) => void handleCreatePage(templateId)}
+            trigger={
+              <Button
+                variant="primary"
+                size="md"
+                stretch="auto"
+                label={isCreatingPage ? "Adding" : "Add page"}
+                loading={isCreatingPage}
+              />
+            }
           />
         </Header.RightItem>
       )}

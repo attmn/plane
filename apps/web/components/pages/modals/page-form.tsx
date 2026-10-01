@@ -38,6 +38,8 @@ type Props = {
   handleFormData: <T extends keyof TPage>(key: T, value: TPage[T]) => void;
   handleModalClose: () => void;
   handleFormSubmit: () => Promise<void>;
+  // shown beside the access control, e.g. the template picker
+  extraField?: React.ReactNode;
 };
 
 const PAGE_ACCESS_SPECIFIERS: {
@@ -50,7 +52,7 @@ const PAGE_ACCESS_SPECIFIERS: {
 ];
 
 export function PageForm(props: Props) {
-  const { formData, handleFormData, handleModalClose, handleFormSubmit } = props;
+  const { formData, handleFormData, handleModalClose, handleFormSubmit, extraField } = props;
   // hooks
   const { isMobile } = usePlatformOS();
   const { t } = useTranslation();
@@ -158,6 +160,7 @@ export function PageForm(props: Props) {
               isMobile={isMobile}
             />
             <h6 className="text-11 font-medium">{t(i18n_access_label || "")}</h6>
+            {extraField}
           </div>
         </DialogInfo>
         <Button

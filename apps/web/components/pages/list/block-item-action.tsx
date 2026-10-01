@@ -85,6 +85,7 @@ export const BlockItemAction = observer(function BlockItemAction(props: Props) {
           "open-in-new-tab",
           "copy-link",
           "toggle-sidebar-pin",
+          "toggle-template",
           "make-a-copy",
           "toggle-lock",
           "toggle-access",

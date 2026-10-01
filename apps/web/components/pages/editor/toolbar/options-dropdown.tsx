@@ -139,6 +139,7 @@ export const PageOptionsDropdown = observer(function PageOptionsDropdown(props: 
           "copy-markdown",
           "version-history",
           "toggle-sidebar-pin",
+          "toggle-template",
           "make-a-copy",
           "archive-restore",
           "delete",

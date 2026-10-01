@@ -3,6 +3,7 @@
 # See the LICENSE file for details.
 
 # Python imports
+import re
 import json
 from datetime import datetime
 from django.core.serializers.json import DjangoJSONEncoder
@@ -611,8 +612,52 @@ class PageDuplicateEndpoint(BaseAPIView):
         # get all the project ids where page is present
         project_ids = ProjectPage.objects.filter(page_id=page_id).values_list("project_id", flat=True)
 
+        # creating a page from a template: a fresh, unlocked page that keeps the content but not the template flags
+        if request.data.get("from_template"):
+            parent_id = request.data.get("parent")
+            parent = None
+            if parent_id:
+                parent = Page.objects.filter(
+                    pk=parent_id,
+                    workspace__slug=slug,
+                    projects__id=project_id,
+                    project_pages__deleted_at__isnull=True,
+                    archived_at__isnull=True,
+                ).first()
+                if parent is None:
+                    return Response({"error": "Parent page not found."}, status=status.HTTP_400_BAD_REQUEST)
+                if parent.access == Page.PRIVATE_ACCESS and parent.owned_by_id != request.user.id:
+                    return Response(
+                        {"error": "You cannot add a page under someone else's private page."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            name = (request.data.get("name") or "").strip()
+            if not name:
+                name = re.sub(r"^\s*template\s*:\s*", "", page.name or "", flags=re.IGNORECASE).strip()
+            access = request.data.get("access", page.access)
+            if access not in (Page.PUBLIC_ACCESS, Page.PRIVATE_ACCESS):
+                return Response({"error": "Invalid access."}, status=status.HTTP_400_BAD_REQUEST)
+            view_props = dict(page.view_props or {})
+            view_props.pop("is_template", None)
+            view_props.pop("sidebar_pinned", None)
+
+            logo_props = request.data.get("logo_props")
+            if isinstance(logo_props, dict) and logo_props.get("in_use"):
+                page.logo_props = logo_props
+
+            page.name = name
+            page.parent = parent
+            page.access = access
+            page.view_props = view_props
+            page.is_locked = False
+            page.archived_at = None
+            page.sort_order = Page.DEFAULT_SORT_ORDER
+            # the new page lives only in the project it was created from
+            project_ids = [project_id]
+        else:
+            page.name = f"{page.name} (Copy)"
+
         page.pk = None
-        page.name = f"{page.name} (Copy)"
         page.description_binary = None
         page.owned_by = request.user
         page.created_by = request.user

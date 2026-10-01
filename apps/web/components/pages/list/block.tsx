@@ -13,6 +13,7 @@ import { getPageName } from "@plane/utils";
 // components
 import { ListItem } from "@/components/core/list";
 import { BlockItemAction } from "@/components/pages/list/block-item-action";
+import { PageTemplateBadge } from "@/components/pages/list/template-badge";
 // hooks
 import { usePlatformOS } from "@/hooks/use-platform-os";
 // plane web hooks
@@ -41,7 +42,7 @@ export const PageListBlock = observer(function PageListBlock(props: TPageListBlo
   // handle page check
   if (!page) return null;
   // derived values
-  const { name, logo_props, getRedirectionLink } = page;
+  const { name, logo_props, view_props, getRedirectionLink } = page;
 
   return (
     <div style={{ paddingLeft: `${depth * 16}px` }}>
@@ -71,6 +72,7 @@ export const PageListBlock = observer(function PageListBlock(props: TPageListBlo
           </>
         }
         title={getPageName(name)}
+        appendTitleElement={view_props?.is_template ? <PageTemplateBadge /> : undefined}
         itemLink={getRedirectionLink()}
         actionableItems={<BlockItemAction page={page} parentRef={parentRef} storeType={storeType} />}
         isMobile={isMobile}
