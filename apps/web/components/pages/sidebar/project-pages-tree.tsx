@@ -15,7 +15,7 @@ import { AddOutline, ChevronDownOutline, ChevronRightOutline, PagesOutline } fro
 import { Logo } from "@plane/blocks/emoji-icon-picker";
 import { setToast } from "@plane/blocks/toast";
 import { EPageAccess } from "@plane/types";
-import { getPageName } from "@plane/utils";
+import { cn, getPageName } from "@plane/utils";
 // components
 import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
 // hooks
@@ -30,6 +30,8 @@ type TProjectPagesTreeProps = {
   projectId: string;
   canCreatePages: boolean;
   onNavigate?: () => void;
+  // shows this page's subpages instead of the project's top-level pages
+  rootPageId?: string;
 };
 
 type TTreeRow = { page: TProjectPage; depth: number; hasChildren: boolean; isExpanded: boolean };
@@ -39,16 +41,54 @@ const INDENT_PX = 12;
 const byName = (a: TProjectPage, b: TProjectPage) =>
   getPageName(a.name).localeCompare(getPageName(b.name), undefined, { sensitivity: "base", numeric: true });
 
+export const isSidebarPinnedPage = (page: TProjectPage) => !!page.view_props?.sidebar_pinned && !page.archived_at;
+
+const getVisibleProjectPages = (
+  projectId: string,
+  getCurrentProjectPageIds: (projectId: string) => string[],
+  getPageById: (pageId: string) => TProjectPage | undefined
+) =>
+  getCurrentProjectPageIds(projectId)
+    .map((id) => getPageById(id))
+    .filter((page): page is TProjectPage => !!page?.id && !page.archived_at);
+
+/**
+ * Pages shown as their own items next to "Pages" in the project sidebar, for everyone in the project.
+ */
+export const useSidebarPinnedPages = (projectId: string): TProjectPage[] => {
+  const { getCurrentProjectPageIds, getPageById } = usePageStore(EPageStoreType.PROJECT);
+  return getVisibleProjectPages(projectId, getCurrentProjectPageIds, getPageById)
+    .filter(isSidebarPinnedPage)
+    .sort(byName);
+};
+
+/**
+ * Returns the pinned page whose subtree holds the given page, if any.
+ */
+export const findPinnedAncestor = (
+  pageId: string | undefined,
+  getPageById: (pageId: string) => TProjectPage | undefined
+): TProjectPage | undefined => {
+  const visited = new Set<string>();
+  let current = pageId ? getPageById(pageId) : undefined;
+  while (current?.id && !visited.has(current.id)) {
+    if (isSidebarPinnedPage(current)) return current;
+    visited.add(current.id);
+    current = current.parent ? getPageById(current.parent) : undefined;
+  }
+  return undefined;
+};
+
 /**
  * Notion-style tree of a project's pages, shown under the project's "Pages" item in the sidebar.
  * Modelled on the nested Pages list (components/pages/list/root.tsx) and the sidebar nav items.
  */
 export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProjectPagesTreeProps) {
-  const { workspaceSlug, projectId, canCreatePages, onNavigate } = props;
+  const { workspaceSlug, projectId, canCreatePages, onNavigate, rootPageId } = props;
   const { pageId: routePageId } = useParams();
   const router = useAppRouter();
   // store hooks
-  const { getCurrentProjectPageIds, getPageById, fetchPagesList, createPage } = usePageStore(EPageStoreType.PROJECT);
+  const { getCurrentProjectPageIds, getPageById, createPage } = usePageStore(EPageStoreType.PROJECT);
   // expanded pages, remembered per project
   const { storedValue: storedExpandedIds, setValue: setStoredExpandedIds } = useLocalStorage<string[]>(
     `sidebar_page_tree_expanded_${projectId}`,
@@ -57,13 +97,7 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
   const expandedIds = useMemo(() => new Set(storedExpandedIds ?? []), [storedExpandedIds]);
   const [creatingParentId, setCreatingParentId] = useState<string | null | undefined>(undefined);
 
-  useEffect(() => {
-    fetchPagesList(workspaceSlug, projectId).catch((error) => console.error(error));
-  }, [fetchPagesList, workspaceSlug, projectId]);
-
-  const pages = getCurrentProjectPageIds(projectId)
-    .map((id) => getPageById(id))
-    .filter((page): page is TProjectPage => !!page?.id && !page.archived_at);
+  const pages = getVisibleProjectPages(projectId, getCurrentProjectPageIds, getPageById);
 
   const pageIds = new Set(pages.map((page) => page.id));
   const childrenByParent = new Map<string, TProjectPage[]>();
@@ -108,7 +142,8 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
     [expandedIds, setStoredExpandedIds]
   );
 
-  const handleCreate = async (parent: TProjectPage | null) => {
+  const handleCreate = async (parentPage: TProjectPage | null) => {
+    const parent = parentPage ?? (rootPageId ? (getPageById(rootPageId) ?? null) : null);
     if (creatingParentId !== undefined) return;
     setCreatingParentId(parent?.id ?? null);
     try {
@@ -138,10 +173,14 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
     rows.push({ page, depth, hasChildren: children.length > 0, isExpanded });
     if (isExpanded) children.forEach((child) => addRow(child, depth + 1));
   };
-  [...rootPages].sort(byName).forEach((page) => addRow(page, 0));
+  // pinned top-level pages have their own sidebar item, so the Pages tree leaves them out
+  const treeRoots = rootPageId
+    ? (childrenByParent.get(rootPageId) ?? [])
+    : rootPages.filter((p) => !isSidebarPinnedPage(p));
+  [...treeRoots].sort(byName).forEach((page) => addRow(page, 0));
 
   return (
-    <div className="flex flex-col gap-0.5" role="tree" aria-label="Pages">
+    <div className="flex flex-col gap-0.5" role="tree" aria-label={rootPageId ? "Subpages" : "Pages"}>
       {rows.map(({ page, depth, hasChildren, isExpanded }) => {
         const pageName = getPageName(page.name);
         return (
@@ -210,5 +249,75 @@ export const ProjectPagesTree = observer(function ProjectPagesTree(props: TProje
         </button>
       )}
     </div>
+  );
+});
+
+type TPinnedPageNavItemProps = {
+  workspaceSlug: string;
+  projectId: string;
+  page: TProjectPage;
+  canCreatePages: boolean;
+  onNavigate?: () => void;
+};
+
+/**
+ * A pinned page shown at the same level as "Pages", with its own subpage tree. Modelled on the "Pages" nav item.
+ */
+export const PinnedPageNavItem = observer(function PinnedPageNavItem(props: TPinnedPageNavItemProps) {
+  const { workspaceSlug, projectId, page, canCreatePages, onNavigate } = props;
+  const { pageId: routePageId } = useParams();
+  const { getPageById } = usePageStore(EPageStoreType.PROJECT);
+  const { storedValue: isOpen, setValue: setIsOpen } = useLocalStorage<boolean>(
+    `sidebar_page_tree_open_page_${page.id}`,
+    false
+  );
+  const activePageId = routePageId?.toString();
+  const isActive = activePageId === page.id;
+  const isInSubtree = !!activePageId && findPinnedAncestor(activePageId, getPageById)?.id === page.id;
+  useEffect(() => {
+    if (isInSubtree && !isActive && !isOpen) setIsOpen(true);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- open when the user navigates into this subtree
+  }, [isInSubtree, isActive]);
+
+  const pageName = getPageName(page.name);
+  return (
+    <>
+      <Link href={`/${workspaceSlug}/projects/${projectId}/pages/${page.id}`} onClick={onNavigate}>
+        <SidebarNavItem isActive={isActive}>
+          <div className="flex w-full items-center justify-between gap-1.5 py-[1px]">
+            <div className="flex min-w-0 items-center gap-1.5">
+              {page.logo_props?.in_use ? (
+                <Logo logo={page.logo_props} size={16} type="lucide" />
+              ) : (
+                <PagesOutline className="size-4 flex-shrink-0 stroke-[1.5]" />
+              )}
+              <span className="truncate text-11 font-medium">{pageName}</span>
+            </div>
+            <button
+              type="button"
+              className="grid size-4 flex-shrink-0 place-items-center rounded-sm text-tertiary hover:bg-layer-1"
+              aria-label={isOpen ? `Hide subpages of ${pageName}` : `Show subpages of ${pageName}`}
+              aria-expanded={!!isOpen}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsOpen(!isOpen);
+              }}
+            >
+              <ChevronRightOutline className={cn("size-3.5 transition-transform", { "rotate-90": isOpen })} />
+            </button>
+          </div>
+        </SidebarNavItem>
+      </Link>
+      {isOpen && (
+        <ProjectPagesTree
+          workspaceSlug={workspaceSlug}
+          projectId={projectId}
+          canCreatePages={canCreatePages}
+          onNavigate={onNavigate}
+          rootPageId={page.id}
+        />
+      )}
+    </>
   );
 });

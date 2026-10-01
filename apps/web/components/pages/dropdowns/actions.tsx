@@ -18,8 +18,10 @@ import {
   LockedOutline,
   MoreHorizontalOutline,
   NewTabOutline,
+  PinOutline,
   RestoreOutline,
   UnlockedOutline,
+  UnpinOutline,
 } from "@makeplane/propel/icons";
 // constants
 import { EPageAccess } from "@plane/constants";
@@ -53,7 +55,8 @@ export type TPageActions =
   | "delete"
   | "version-history"
   | "export"
-  | "move";
+  | "move"
+  | "toggle-sidebar-pin";
 
 type Props = {
   extraOptions?: (TContextMenuItem & { key: TPageActions })[];
@@ -91,7 +94,10 @@ export const PageActions = observer(function PageActions(props: Props) {
     canCurrentUserDuplicatePage,
     canCurrentUserLockPage,
     canCurrentUserMovePage,
+    canCurrentUserEditPage,
+    view_props,
   } = page;
+  const isSidebarPinned = !!view_props?.sidebar_pinned;
   // menu items
   const MENU_ITEMS = useMemo(
     function MENU_ITEMS() {
@@ -113,6 +119,15 @@ export const PageActions = observer(function PageActions(props: Props) {
           title: access === EPageAccess.PUBLIC ? "Make private" : "Make public",
           icon: access === EPageAccess.PUBLIC ? LockOutline : GlobeOutline,
           shouldRender: canCurrentUserChangeAccess && !archived_at,
+        },
+        {
+          key: "toggle-sidebar-pin",
+          action: () => {
+            pageOperations.toggleSidebarPin();
+          },
+          title: isSidebarPinned ? "Remove from sidebar" : "Show in sidebar",
+          icon: isSidebarPinned ? UnpinOutline : PinOutline,
+          shouldRender: canCurrentUserEditPage && !archived_at,
         },
         {
           key: "open-in-new-tab",
@@ -179,6 +194,8 @@ export const PageActions = observer(function PageActions(props: Props) {
       canCurrentUserArchivePage,
       canCurrentUserDeletePage,
       canCurrentUserMovePage,
+      canCurrentUserEditPage,
+      isSidebarPinned,
       isMovePageEnabled,
       pageOperations,
     ]

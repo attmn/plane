@@ -23,11 +23,17 @@ import type { EUserProjectRoles } from "@plane/types";
 import { cn } from "@plane/utils";
 // plane ui
 // components
-import { ProjectPagesTree } from "@/components/pages/sidebar/project-pages-tree";
+import {
+  PinnedPageNavItem,
+  ProjectPagesTree,
+  findPinnedAncestor,
+  useSidebarPinnedPages,
+} from "@/components/pages/sidebar/project-pages-tree";
 import { SidebarNavItem } from "@/components/sidebar/sidebar-navigation";
 // hooks
 import { useAppTheme } from "@/hooks/store/use-app-theme";
 import { useIssueDetail } from "@/hooks/store/use-issue-detail";
+import { EPageStoreType, usePageStore } from "@/hooks/store";
 import { useProject } from "@/hooks/store/use-project";
 import { useUserPermissions } from "@/hooks/store/user";
 import useLocalStorage from "@/hooks/use-local-storage";
@@ -51,12 +57,13 @@ type TProjectItemsProps = {
 
 export const ProjectNavigation = observer(function ProjectNavigation(props: TProjectItemsProps) {
   const { workspaceSlug, projectId, additionalNavigationItems } = props;
-  const { workItem: workItemIdentifierFromRoute } = useParams();
+  const { workItem: workItemIdentifierFromRoute, pageId: routePageId } = useParams();
   // store hooks
   const { t } = useTranslation();
   const { isExtendedProjectSidebarOpened, toggleExtendedProjectSidebar, toggleSidebar } = useAppTheme();
   const { getPartialProjectById } = useProject();
   const { allowPermissions } = useUserPermissions();
+  const { fetchPagesList, getPageById } = usePageStore(EPageStoreType.PROJECT);
   const {
     issue: { getIssueIdByIdentifier, getIssueById },
   } = useIssueDetail();
@@ -74,10 +81,19 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
     `sidebar_page_tree_open_${projectId}`,
     false
   );
+  // the page tree and the pinned pages both need this project's pages
+  const isPageViewEnabled = !!project?.page_view;
   useEffect(() => {
-    if (isOnProjectPages && !isPagesTreeOpen) setIsPagesTreeOpen(true);
+    if (!isPageViewEnabled) return;
+    fetchPagesList(workspaceSlug, projectId).catch((error) => console.error(error));
+  }, [fetchPagesList, isPageViewEnabled, workspaceSlug, projectId]);
+  const pinnedPages = useSidebarPinnedPages(projectId);
+  const isInPinnedPage = !!findPinnedAncestor(routePageId?.toString(), getPageById);
+  const isPagesTreeAutoOpen = isOnProjectPages && !isInPinnedPage;
+  useEffect(() => {
+    if (isPagesTreeAutoOpen && !isPagesTreeOpen) setIsPagesTreeOpen(true);
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- open the tree when the user enters this project's pages
-  }, [isOnProjectPages]);
+  }, [isPagesTreeAutoOpen]);
   // handlers
   const handleProjectClick = () => {
     if (window.innerWidth < 768) {
@@ -185,11 +201,11 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
       const isWorkItemActive = item.key === "work_items" && workItemCondition;
       const isEpicActive = item.key === "epics" && epicCondition;
       // pathname condition
-      const isPathnameActive = pathname.includes(item.href);
+      const isPathnameActive = pathname.includes(item.href) && !(item.key === "pages" && isInPinnedPage);
       // return
       return isWorkItemActive || isEpicActive || isPathnameActive;
     },
-    [pathname, workItem, workItemId, projectId]
+    [pathname, workItem, workItemId, projectId, isInPinnedPage]
   );
 
   if (!project) return null;
@@ -238,22 +254,35 @@ export const ProjectNavigation = observer(function ProjectNavigation(props: TPro
           </Link>
         );
 
-        if (!isPagesItem || !isPagesTreeOpen) return navLink;
+        if (!isPagesItem) return navLink;
 
+        const canCreatePages = allowPermissions(
+          [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
+          EUserPermissionsLevel.PROJECT,
+          workspaceSlug,
+          project.id
+        );
         return (
           <React.Fragment key={item.key}>
             {navLink}
-            <ProjectPagesTree
-              workspaceSlug={workspaceSlug}
-              projectId={projectId}
-              canCreatePages={allowPermissions(
-                [EUserPermissions.ADMIN, EUserPermissions.MEMBER],
-                EUserPermissionsLevel.PROJECT,
-                workspaceSlug,
-                project.id
-              )}
-              onNavigate={handleProjectClick}
-            />
+            {isPagesTreeOpen && (
+              <ProjectPagesTree
+                workspaceSlug={workspaceSlug}
+                projectId={projectId}
+                canCreatePages={canCreatePages}
+                onNavigate={handleProjectClick}
+              />
+            )}
+            {pinnedPages.map((page) => (
+              <PinnedPageNavItem
+                key={page.id}
+                workspaceSlug={workspaceSlug}
+                projectId={projectId}
+                page={page}
+                canCreatePages={canCreatePages}
+                onNavigate={handleProjectClick}
+              />
+            ))}
           </React.Fragment>
         );
       })}

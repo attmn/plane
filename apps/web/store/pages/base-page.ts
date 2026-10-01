@@ -9,7 +9,7 @@ import { action, computed, makeObservable, observable, reaction, runInAction } f
 // plane imports
 import { EPageAccess } from "@plane/constants";
 import type { ChangeHandlerPayload } from "@plane/blocks/emoji-icon-picker";
-import type { TDocumentPayload, TLogoProps, TNameDescriptionLoader, TPage } from "@plane/types";
+import type { TDocumentPayload, TLogoProps, TNameDescriptionLoader, TPage, TPageViewProps } from "@plane/types";
 // plane web store
 import { ExtendedBasePage } from "@/store/pages/extended-base-page";
 import type { RootStore } from "@/store/root.store";
@@ -38,6 +38,7 @@ export type TBasePage = TPage & {
   archive: (params: { shouldSync?: boolean; archived_at?: string | null }) => Promise<void>;
   restore: (params: { shouldSync?: boolean }) => Promise<void>;
   updatePageLogo: (value: ChangeHandlerPayload) => Promise<void>;
+  toggleSidebarPin: () => Promise<void>;
   addToFavorites: () => Promise<void>;
   removePageFromFavorites: () => Promise<void>;
   duplicate: () => Promise<TPage | undefined>;
@@ -86,6 +87,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
   id: string | undefined;
   name: string | undefined;
   logo_props: TLogoProps | undefined;
+  view_props: TPageViewProps | undefined;
   description_json: object | undefined;
   description_html: string | undefined;
   color: string | undefined;
@@ -124,6 +126,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
     this.id = page?.id || undefined;
     this.name = page?.name;
     this.logo_props = page?.logo_props || undefined;
+    this.view_props = page?.view_props || undefined;
     this.description_json = page?.description_json || undefined;
     this.description_html = page?.description_html || undefined;
     this.color = page?.color || undefined;
@@ -150,6 +153,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       id: observable.ref,
       name: observable.ref,
       logo_props: observable.ref,
+      view_props: observable.ref,
       description_json: observable.ref,
       description_html: observable.ref,
       color: observable.ref,
@@ -186,6 +190,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       archive: action,
       restore: action,
       updatePageLogo: action,
+      toggleSidebarPin: action,
       addToFavorites: action,
       removePageFromFavorites: action,
       duplicate: action,
@@ -234,6 +239,7 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       parent: this.parent,
       access: this.access,
       logo_props: this.logo_props,
+      view_props: this.view_props,
       is_favorite: this.is_favorite,
       is_locked: this.is_locked,
       archived_at: this.archived_at,
@@ -481,6 +487,25 @@ export class BasePage extends ExtendedBasePage implements TBasePage {
       console.error("Error in updating page logo", error);
       runInAction(() => {
         this.logo_props = originalLogoProps as TLogoProps;
+      });
+      throw error;
+    }
+  };
+
+  /**
+   * @description show or hide the page next to "Pages" in the project sidebar, for everyone in the project
+   */
+  toggleSidebarPin = async () => {
+    const originalViewProps = this.view_props;
+    const viewProps: TPageViewProps = { ...originalViewProps, sidebar_pinned: !originalViewProps?.sidebar_pinned };
+    runInAction(() => {
+      this.view_props = viewProps;
+    });
+    try {
+      await this.services.update({ view_props: viewProps });
+    } catch (error) {
+      runInAction(() => {
+        this.view_props = originalViewProps;
       });
       throw error;
     }

@@ -25,6 +25,7 @@ export type TPageOperations = {
   copyLink: () => void;
   duplicate: () => void;
   toggleArchive: () => void;
+  toggleSidebarPin: () => void;
 };
 
 type Props = {
@@ -47,7 +48,10 @@ export const usePageOperations = (
     is_locked,
     getRedirectionLink,
     removePageFromFavorites,
+    toggleSidebarPin,
+    view_props,
   } = page;
+  const isSidebarPinned = !!view_props?.sidebar_pinned;
   // collaborative actions
   const { executeCollaborativeAction } = useCollaborativePageActions(props);
   // local storage
@@ -138,6 +142,24 @@ export const usePageOperations = (
           }
         }
       },
+      toggleSidebarPin: async () => {
+        try {
+          await toggleSidebarPin();
+          setToast({
+            type: "success",
+            title: "Success!",
+            message: isSidebarPinned ? "Page removed from the sidebar." : "Page shown in the sidebar for everyone.",
+          });
+        } catch (_error) {
+          setToast({
+            type: "error",
+            title: "Error!",
+            message: isSidebarPinned
+              ? "Page could not be removed from the sidebar. Please try again later."
+              : "Page could not be shown in the sidebar. Please try again later.",
+          });
+        }
+      },
       toggleFavorite: async () => {
         if (is_favorite) {
           try {
@@ -216,8 +238,10 @@ export const usePageOperations = (
     is_favorite,
     is_locked,
     isFavoriteMenuOpen,
+    isSidebarPinned,
     removePageFromFavorites,
     toggleFavoriteMenu,
+    toggleSidebarPin,
   ]);
   return {
     pageOperations,

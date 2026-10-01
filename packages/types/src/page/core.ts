@@ -28,8 +28,16 @@ export type TPage = {
   updated_by: string | undefined;
   workspace: string | undefined;
   logo_props: TLogoProps | undefined;
+  view_props?: TPageViewProps;
   deleted_at: Date | undefined;
 } & TPageExtended;
+
+// shared per-page display settings, stored on the page for every viewer
+export type TPageViewProps = {
+  full_width?: boolean;
+  // shows the page as its own item next to "Pages" in the project sidebar
+  sidebar_pinned?: boolean;
+};
 
 // page filters
 export type TPageNavigationTabs = "public" | "private" | "archived";

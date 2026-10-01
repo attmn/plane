@@ -175,7 +175,8 @@ class PageViewSet(BaseViewSet):
                 project_pages__deleted_at__isnull=True,
             )
 
-            if page.is_locked:
+            # a locked page can still be shown in or removed from the sidebar, which only touches view_props
+            if page.is_locked and set(request.data.keys()) - {"view_props"}:
                 return Response({"error": "Page is locked"}, status=status.HTTP_400_BAD_REQUEST)
 
             parent = request.data.get("parent", None)
