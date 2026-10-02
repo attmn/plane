@@ -11,12 +11,19 @@ from plane.app.views import (
     PagesDescriptionViewSet,
     PageVersionEndpoint,
     PageDuplicateEndpoint,
+    PageMoveEndpoint,
+    PageMoveLocationEndpoint,
     PageCommentEndpoint,
     PageCommentDetailEndpoint,
     PageCommentResolveEndpoint,
 )
 
 urlpatterns = [
+    path(
+        "workspaces/<str:slug>/pages/<uuid:page_id>/location/",
+        PageMoveLocationEndpoint.as_view(),
+        name="page-move-location",
+    ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/pages-summary/",
         PageViewSet.as_view({"get": "summary"}),
@@ -75,6 +82,11 @@ urlpatterns = [
         "workspaces/<str:slug>/projects/<uuid:project_id>/pages/<uuid:page_id>/duplicate/",
         PageDuplicateEndpoint.as_view(),
         name="page-duplicate",
+    ),
+    path(
+        "workspaces/<str:slug>/projects/<uuid:project_id>/pages/<uuid:page_id>/move/",
+        PageMoveEndpoint.as_view(),
+        name="project-page-move",
     ),
     path(
         "workspaces/<str:slug>/projects/<uuid:project_id>/pages/<uuid:page_id>/comments/",

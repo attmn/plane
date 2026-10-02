@@ -198,13 +198,24 @@ export class ProjectPageService extends APIService {
       });
   }
 
-  async move(workspaceSlug: string, projectId: string, pageId: string, newProjectId: string): Promise<void> {
+  async move(
+    workspaceSlug: string,
+    projectId: string,
+    pageId: string,
+    newProjectId: string,
+    parentId: string | null
+  ): Promise<{ project_id: string; parent_id: string | null; moved_page_ids: string[] }> {
     return this.post(`/api/workspaces/${workspaceSlug}/projects/${projectId}/pages/${pageId}/move/`, {
       new_project_id: newProjectId,
+      parent_id: parentId,
     })
       .then((response) => response?.data)
       .catch((error) => {
         throw error?.response?.data;
       });
+  }
+
+  async getMoveLocation(workspaceSlug: string, pageId: string): Promise<{ project_id: string }> {
+    return this.get(`/api/workspaces/${workspaceSlug}/pages/${pageId}/location/`).then((response) => response?.data);
   }
 }

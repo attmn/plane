@@ -66,7 +66,7 @@ function PageDetailsPage({ params }: Route.ComponentProps) {
   const { getEditorFileHandlers } = useEditorConfig();
   // fetch page details
   const { error: pageDetailsError } = useSWR(
-    `PAGE_DETAILS_${pageId}`,
+    `PAGE_DETAILS_${projectId}_${pageId}`,
     () => fetchPageDetails(workspaceSlug, projectId, pageId),
     {
       revalidateIfStale: true,
@@ -74,24 +74,40 @@ function PageDetailsPage({ params }: Route.ComponentProps) {
       revalidateOnReconnect: true,
     }
   );
+  useEffect(() => {
+    if (!pageDetailsError) return;
+    let active = true;
+    projectPageService.getMoveLocation(workspaceSlug, pageId).then(
+      ({ project_id }) => {
+        if (active && project_id !== projectId) {
+          router.replace(`/${workspaceSlug}/projects/${project_id}/pages/${pageId}`);
+        }
+        return undefined;
+      },
+      () => undefined
+    );
+    return () => {
+      active = false;
+    };
+  }, [pageDetailsError, workspaceSlug, projectId, pageId, router]);
   // page root handlers
   const pageRootHandlers: TPageRootHandlers = useMemo(
     () => ({
       create: createPage,
-      fetchAllVersions: async (pageId) =>
-        await projectPageVersionService.fetchAllVersions(workspaceSlug, projectId, pageId),
+      fetchAllVersions: async (requestedPageId) =>
+        await projectPageVersionService.fetchAllVersions(workspaceSlug, projectId, requestedPageId),
       fetchDescriptionBinary: async () => {
         if (!id) return;
         return await projectPageService.fetchDescriptionBinary(workspaceSlug, projectId, id);
       },
       fetchEntity: fetchEntityCallback,
-      fetchVersionDetails: async (pageId, versionId) =>
-        await projectPageVersionService.fetchVersionById(workspaceSlug, projectId, pageId, versionId),
-      restoreVersion: async (pageId, versionId) =>
-        await projectPageVersionService.restoreVersion(workspaceSlug, projectId, pageId, versionId),
-      getRedirectionLink: (pageId) => {
-        if (pageId) {
-          return `/${workspaceSlug}/projects/${projectId}/pages/${pageId}`;
+      fetchVersionDetails: async (requestedPageId, versionId) =>
+        await projectPageVersionService.fetchVersionById(workspaceSlug, projectId, requestedPageId, versionId),
+      restoreVersion: async (requestedPageId, versionId) =>
+        await projectPageVersionService.restoreVersion(workspaceSlug, projectId, requestedPageId, versionId),
+      getRedirectionLink: (requestedPageId) => {
+        if (requestedPageId) {
+          return `/${workspaceSlug}/projects/${projectId}/pages/${requestedPageId}`;
         } else {
           return `/${workspaceSlug}/projects/${projectId}/pages`;
         }

@@ -71,7 +71,13 @@ export interface IProjectPageStore {
     projectId?: string
   ) => Promise<TPage | undefined>;
   removePage: (params: { pageId: string; shouldSync?: boolean }) => Promise<void>;
-  movePage: (workspaceSlug: string, projectId: string, pageId: string, newProjectId: string) => Promise<void>;
+  movePage: (
+    workspaceSlug: string,
+    projectId: string,
+    pageId: string,
+    newProjectId: string,
+    parentId: string | null
+  ) => Promise<void>;
 }
 
 export class ProjectPageStore implements IProjectPageStore {
@@ -436,11 +442,27 @@ export class ProjectPageStore implements IProjectPageStore {
    * @param {string} pageId
    * @param {string} newProjectId
    */
-  movePage = async (workspaceSlug: string, projectId: string, pageId: string, newProjectId: string) => {
+  movePage = async (
+    workspaceSlug: string,
+    projectId: string,
+    pageId: string,
+    newProjectId: string,
+    parentId: string | null
+  ) => {
     try {
-      await this.service.move(workspaceSlug, projectId, pageId, newProjectId);
+      const result = await this.service.move(workspaceSlug, projectId, pageId, newProjectId, parentId);
       runInAction(() => {
-        unset(this.data, [pageId]);
+        for (const movedPageId of result.moved_page_ids) {
+          const movedPage = this.data[movedPageId];
+          if (!movedPage) continue;
+          if (newProjectId !== projectId) {
+            // ProjectPage service closures capture the project at creation time.
+            // Recreate moved instances from the destination fetch after navigation.
+            unset(this.data, [movedPageId]);
+          } else if (movedPageId === pageId) {
+            movedPage.mutateProperties({ parent: parentId, sort_order: 65535 }, false);
+          }
+        }
       });
     } catch (error) {
       console.error("Unable to move page", error);

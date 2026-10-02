@@ -19,7 +19,7 @@ from rest_framework.permissions import AllowAny
 
 # Module imports
 from ..base import BaseAPIView
-from plane.db.models import FileAsset, Workspace, Project, User, WorkspaceMember, ProjectMember
+from plane.db.models import FileAsset, Workspace, Project, User, WorkspaceMember, ProjectMember, ProjectPage
 from plane.settings.storage import S3Storage
 from plane.app.permissions import allow_permission, ROLE
 from plane.utils.cache import invalidate_cache_directly
@@ -545,6 +545,31 @@ class AssetRestoreEndpoint(BaseAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def can_access_project_asset(request, asset, project_id, slug):
+    """Keep page images available in their current project after a page move."""
+    is_member = ProjectMember.objects.filter(
+        member=request.user, workspace__slug=slug, project_id=project_id, is_active=True
+    ).exists()
+    if not is_member:
+        return False
+
+    if asset.project_id == project_id:
+        if asset.entity_type != FileAsset.EntityTypeContext.PAGE_DESCRIPTION or not asset.page_id:
+            return True
+        # An old project URL must stop working when the page leaves that project.
+        return ProjectPage.objects.filter(page_id=asset.page_id, project_id=project_id, deleted_at__isnull=True).exists()
+
+    if asset.entity_type != FileAsset.EntityTypeContext.PAGE_DESCRIPTION or not asset.page_id:
+        return False
+    page = asset.page
+    return (
+        page.moved_to_project == project_id
+        and page.deleted_at is None
+        and (page.access == page.PUBLIC_ACCESS or page.owned_by_id == request.user.id)
+        and ProjectPage.objects.filter(page=page, project_id=project_id, deleted_at__isnull=True).exists()
+    )
+
+
 class ProjectAssetEndpoint(BaseAPIView):
     """This endpoint is used to upload cover images/logos etc for workspace, projects and users."""
 
@@ -671,10 +696,12 @@ class ProjectAssetEndpoint(BaseAPIView):
         asset.save(update_fields=["is_deleted", "deleted_at"])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST])
     def get(self, request, slug, project_id, pk):
-        # get the asset id
-        asset = FileAsset.objects.get(workspace__slug=slug, project_id=project_id, pk=pk)
+        asset = FileAsset.objects.filter(workspace__slug=slug, pk=pk).select_related("page").first()
+        if asset is None:
+            return Response({"error": "The requested asset could not be found."}, status=status.HTTP_404_NOT_FOUND)
+        if not can_access_project_asset(request, asset, project_id, slug):
+            return Response({"error": "You don't have the required permissions."}, status=status.HTTP_403_FORBIDDEN)
 
         # Check if the asset is uploaded
         if not asset.is_uploaded:
@@ -895,13 +922,11 @@ class WorkspaceAssetDownloadEndpoint(BaseAPIView):
 class ProjectAssetDownloadEndpoint(BaseAPIView):
     """Endpoint to generate a download link for an asset with content-disposition=attachment."""
 
-    @allow_permission([ROLE.ADMIN, ROLE.MEMBER, ROLE.GUEST], level="PROJECT")
     def get(self, request, slug, project_id, asset_id):
         try:
             asset = FileAsset.objects.get(
                 id=asset_id,
                 workspace__slug=slug,
-                project_id=project_id,
                 is_uploaded=True,
             )
         except FileAsset.DoesNotExist:
@@ -909,6 +934,9 @@ class ProjectAssetDownloadEndpoint(BaseAPIView):
                 {"error": "The requested asset could not be found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
+
+        if not can_access_project_asset(request, asset, project_id, slug):
+            return Response({"error": "You don't have the required permissions."}, status=status.HTTP_403_FORBIDDEN)
 
         storage = S3Storage(request=request)
         signed_url = storage.generate_presigned_url(

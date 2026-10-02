@@ -9,7 +9,8 @@ from datetime import datetime
 from django.core.serializers.json import DjangoJSONEncoder
 
 # Django imports
-from django.db import connection
+from django.db import connection, transaction
+from django.utils import timezone
 from django.db.models import (
     Exists,
     OuterRef,
@@ -45,6 +46,7 @@ from plane.db.models import (
     ProjectPage,
     Project,
     UserRecentVisit,
+    PageComment,
 )
 from plane.utils.error_codes import ERROR_CODES
 from plane.utils.order_queryset import PAGE_ORDER_BY_ALLOWLIST, sanitize_order_by
@@ -56,6 +58,117 @@ from plane.bgtasks.page_version_task import track_page_version
 from plane.bgtasks.recent_visited_task import recent_visited_task
 from plane.bgtasks.copy_s3_object import copy_s3_objects_of_description_and_assets
 from plane.app.permissions import ProjectPagePermission
+
+
+class PageMoveEndpoint(BaseAPIView):
+    """Move a page and its descendants without changing their IDs or document data."""
+
+    permission_classes = [ProjectPagePermission]
+
+    def post(self, request, slug, project_id, page_id):
+        target_id = request.data.get("new_project_id", project_id)
+        parent_id = request.data.get("parent_id")
+        if not isinstance(target_id, str) or not target_id:
+            return Response({"error": "A destination project is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if parent_id is not None and not isinstance(parent_id, str):
+            return Response({"error": "Invalid parent page."}, status=status.HTTP_400_BAD_REQUEST)
+
+        with transaction.atomic():
+            page = Page.objects.select_for_update().filter(
+                id=page_id,
+                workspace__slug=slug,
+                deleted_at__isnull=True,
+                project_pages__project_id=project_id,
+                project_pages__deleted_at__isnull=True,
+            ).first()
+            if page is None:
+                return Response({"error": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+            if page.owned_by_id != request.user.id and not ProjectMember.objects.filter(
+                project_id=project_id, member=request.user, role=20, is_active=True
+            ).exists():
+                return Response({"error": "Only the page owner or a project admin can move it."}, status=status.HTTP_403_FORBIDDEN)
+
+            target = Project.objects.filter(id=target_id, workspace=page.workspace, archived_at__isnull=True).first()
+            if target is None:
+                return Response({"error": "Destination project not found."}, status=status.HTTP_404_NOT_FOUND)
+            if not ProjectMember.objects.filter(
+                project=target, member=request.user, role__in=[15, 20], is_active=True
+            ).exists():
+                return Response({"error": "You cannot create pages in the destination project."}, status=status.HTTP_403_FORBIDDEN)
+
+            # Collect the full tree before changing any links. The visited set also protects
+            # against malformed historical parent cycles.
+            page_ids = {page.id}
+            frontier = {page.id}
+            while frontier:
+                children = set(Page.objects.filter(
+                    parent_id__in=frontier, workspace=page.workspace, deleted_at__isnull=True
+                ).values_list("id", flat=True)) - page_ids
+                page_ids.update(children)
+                frontier = children
+            descendants = list(Page.objects.select_for_update().filter(id__in=page_ids))
+            if any(child.is_locked or child.archived_at for child in descendants):
+                return Response({"error": "Unlock and restore every page in the tree before moving it."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if parent_id:
+                if str(parent_id) in {str(value) for value in page_ids}:
+                    return Response({"error": "A page cannot be moved under itself or a child."}, status=status.HTTP_400_BAD_REQUEST)
+                parent = Page.objects.filter(
+                    id=parent_id,
+                    workspace=page.workspace,
+                    project_pages__project=target,
+                    project_pages__deleted_at__isnull=True,
+                    deleted_at__isnull=True,
+                    archived_at__isnull=True,
+                ).first()
+                if parent is None or parent.is_locked or (parent.access == Page.PRIVATE_ACCESS and parent.owned_by_id != request.user.id):
+                    return Response({"error": "Destination parent page is unavailable."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if str(target.id) != str(project_id):
+                links = ProjectPage.objects.select_for_update().filter(
+                    project_id=project_id, page_id__in=page_ids, deleted_at__isnull=True
+                )
+                if links.count() != len(page_ids):
+                    return Response({"error": "Every child must belong to the source project."}, status=status.HTTP_409_CONFLICT)
+                if ProjectPage.objects.filter(
+                    project=target, page_id__in=page_ids, deleted_at__isnull=True
+                ).exists():
+                    return Response({"error": "A page already belongs to the destination project."}, status=status.HTTP_409_CONFLICT)
+                links.update(project=target, updated_by=request.user, updated_at=timezone.now())
+                PageComment.objects.filter(page_id__in=page_ids, project_id=project_id).update(project=target)
+                UserFavorite.objects.filter(
+                    entity_type="page", entity_identifier__in=page_ids, project_id=project_id
+                ).delete()
+                Page.objects.filter(id__in=page_ids).update(moved_to_project=target.id, updated_at=timezone.now())
+
+            Page.objects.filter(id=page.id).update(
+                parent_id=parent_id,
+                sort_order=Page.DEFAULT_SORT_ORDER,
+                updated_by=request.user,
+                updated_at=timezone.now(),
+            )
+            return Response(
+                {"project_id": str(target.id), "parent_id": parent_id, "moved_page_ids": [str(value) for value in page_ids]},
+                status=status.HTTP_200_OK,
+            )
+
+
+class PageMoveLocationEndpoint(BaseAPIView):
+    """Resolve an old page URL for a user who may view its new project."""
+
+    def get(self, request, slug, page_id):
+        page = Page.objects.filter(id=page_id, workspace__slug=slug, deleted_at__isnull=True).first()
+        if page is None or page.moved_to_project is None:
+            return Response({"error": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not ProjectPage.objects.filter(
+            page=page, project_id=page.moved_to_project, deleted_at__isnull=True
+        ).exists():
+            return Response({"error": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+        if not ProjectMember.objects.filter(
+            project_id=page.moved_to_project, member=request.user, is_active=True
+        ).exists() or (page.access == Page.PRIVATE_ACCESS and page.owned_by_id != request.user.id):
+            return Response({"error": "Page not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"project_id": str(page.moved_to_project)}, status=status.HTTP_200_OK)
 
 
 def unarchive_archive_page_and_descendants(page_id, archived_at):

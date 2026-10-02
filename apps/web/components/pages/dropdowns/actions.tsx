@@ -35,6 +35,7 @@ import type { TContextMenuItem } from "@plane/blocks/context-menu";
 import { ContextMenu, getRenderableItems, resolveItemVariant } from "@plane/blocks/context-menu";
 // components
 import { DeletePageModal } from "@/components/pages/modals/delete-page-modal";
+import { MovePageModal } from "@/components/pages/modals/move-page-modal";
 // hooks
 import { usePageOperations } from "@/hooks/use-page-operations";
 // plane web hooks
@@ -76,7 +77,7 @@ export const PageActions = observer(function PageActions(props: Props) {
   const [deletePageModal, setDeletePageModal] = useState(false);
   const [movePageModal, setMovePageModal] = useState(false);
   // params
-  const { workspaceSlug } = useParams();
+  const { workspaceSlug, projectId } = useParams();
   // page flag
   const { isMovePageEnabled } = usePageFlag({
     workspaceSlug: workspaceSlug?.toString() ?? "",
@@ -187,7 +188,7 @@ export const PageActions = observer(function PageActions(props: Props) {
           action: () => setMovePageModal(true),
           title: "Move",
           icon: ExportOutline,
-          shouldRender: canCurrentUserMovePage && isMovePageEnabled,
+          shouldRender: canCurrentUserMovePage && isMovePageEnabled && !is_locked && !archived_at,
         },
       ];
       if (extraOptions) {
@@ -230,6 +231,15 @@ export const PageActions = observer(function PageActions(props: Props) {
         page={page}
         storeType={storeType}
       />
+      {page.id && projectId && workspaceSlug && (
+        <MovePageModal
+          isOpen={movePageModal}
+          onClose={() => setMovePageModal(false)}
+          page={page}
+          projectId={projectId.toString()}
+          workspaceSlug={workspaceSlug.toString()}
+        />
+      )}
       {parentRef && <ContextMenu parentRef={parentRef} items={arrangedOptions} />}
       <Menu>
         <MenuTrigger

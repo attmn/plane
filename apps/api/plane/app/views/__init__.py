@@ -172,6 +172,8 @@ from .page.base import (
     PageFavoriteViewSet,
     PagesDescriptionViewSet,
     PageDuplicateEndpoint,
+    PageMoveEndpoint,
+    PageMoveLocationEndpoint,
 )
 from .page.version import PageVersionEndpoint
 from .page.comment import PageCommentEndpoint, PageCommentDetailEndpoint, PageCommentResolveEndpoint

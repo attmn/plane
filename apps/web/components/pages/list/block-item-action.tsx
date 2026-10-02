@@ -87,6 +87,7 @@ export const BlockItemAction = observer(function BlockItemAction(props: Props) {
           "toggle-sidebar-pin",
           "toggle-template",
           "make-a-copy",
+          "move",
           "toggle-lock",
           "toggle-access",
           "archive-restore",
