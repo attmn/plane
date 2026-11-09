@@ -52,6 +52,8 @@ from .module import (
     ModuleArchiveUnarchiveAPIEndpoint,
 )
 
+from .page import ProjectPageListCreateAPIEndpoint, ProjectPageDetailAPIEndpoint
+
 from .member import (
     ProjectMemberListCreateAPIEndpoint,
     ProjectMemberDetailAPIEndpoint,
