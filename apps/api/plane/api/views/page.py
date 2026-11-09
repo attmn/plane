@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # See the LICENSE file for details.
 
+import json
+
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -11,6 +14,7 @@ from plane.api.serializers import PageAPIDetailSerializer, PageAPISerializer
 from plane.app.permissions import ProjectPagePermission
 from plane.app.serializers import PageDetailSerializer, PageSerializer
 from plane.bgtasks.page_transaction_task import page_transaction
+from plane.bgtasks.page_version_task import track_page_version
 from plane.db.models import Page, Project, ProjectMember
 from plane.utils.content_validator import validate_html_content
 
@@ -133,6 +137,11 @@ class ProjectPageDetailAPIEndpoint(ProjectPageBaseEndpoint):
                 new_description_html=payload["description_html"],
                 old_description_html=old_description_html,
                 page_id=str(page.id),
+            )
+            track_page_version.delay(
+                page_id=str(page.id),
+                existing_instance=json.dumps({"description_html": old_description_html}, cls=DjangoJSONEncoder),
+                user_id=str(request.user.id),
             )
         return Response(PageAPIDetailSerializer(page).data)
 

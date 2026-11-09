@@ -13,6 +13,11 @@ def page_transaction_delay(mocker):
     return mocker.patch("plane.api.views.page.page_transaction.delay")
 
 
+@pytest.fixture(autouse=True)
+def track_page_version_delay(mocker):
+    return mocker.patch("plane.api.views.page.track_page_version.delay")
+
+
 @pytest.fixture
 def project(db, workspace, create_user):
     project = Project.objects.create(name="Pages", identifier="PG", workspace=workspace, created_by=create_user)
@@ -162,8 +167,8 @@ class TestProjectPageRead:
 @pytest.mark.contract
 class TestProjectPageUpdate:
     @pytest.mark.django_db
-    def test_new_body_resets_the_stored_document(
-        self, api_key_client, workspace, project, create_user, page_transaction_delay
+    def test_new_body_resets_the_stored_document_and_records_a_version(
+        self, api_key_client, workspace, project, create_user, page_transaction_delay, track_page_version_delay
     ):
         page = make_page(project, create_user, description_html="<p>old</p>", description_binary=b"stale")
 
@@ -176,9 +181,12 @@ class TestProjectPageUpdate:
         assert page.description_html == "<p>new</p>"
         assert page.description_binary is None
         page_transaction_delay.assert_called_once()
+        track_page_version_delay.assert_called_once()
 
     @pytest.mark.django_db
-    def test_rename_keeps_the_stored_document(self, api_key_client, workspace, project, create_user):
+    def test_rename_keeps_the_stored_document(
+        self, api_key_client, workspace, project, create_user, track_page_version_delay
+    ):
         page = make_page(project, create_user, description_binary=b"keep")
 
         response = api_key_client.patch(detail_url(workspace, project, page), {"name": "Renamed"}, format="json")
@@ -187,6 +195,7 @@ class TestProjectPageUpdate:
         page.refresh_from_db()
         assert page.name == "Renamed"
         assert bytes(page.description_binary) == b"keep"
+        track_page_version_delay.assert_not_called()
 
     @pytest.mark.django_db
     def test_locked_page_is_refused(self, api_key_client, workspace, project, create_user):
